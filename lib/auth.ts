@@ -70,10 +70,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.roleId = (user as any).roleId
         token.ministereId = (user as any).ministereId
         token.structureId = (user as any).structureId
+        token.lastRefresh = Date.now()
       }
       
-      // Rafraîchir les données utilisateur à chaque requête pour avoir les dernières infos
-      if (token.id && trigger !== 'signIn' && trigger !== 'signUp') {
+      // Rafraîchir les données utilisateur seulement toutes les 5 minutes pour éviter surcharge
+      const shouldRefresh = !token.lastRefresh || (Date.now() - (token.lastRefresh as number)) > 5 * 60 * 1000
+      
+      if (token.id && shouldRefresh && trigger !== 'signIn' && trigger !== 'signUp') {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
@@ -92,6 +95,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.roleId = dbUser.roleId
             token.ministereId = dbUser.ministereId
             token.structureId = dbUser.structureId
+            token.lastRefresh = Date.now()
           }
         } catch (error) {
           console.error('Erreur rafraîchissement token:', error)

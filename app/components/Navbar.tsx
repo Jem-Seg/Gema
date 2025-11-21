@@ -1,6 +1,6 @@
 "use client"
 import React from 'react'
-import { ListTree, Menu, PackagePlus, X, Settings, ShoppingBasket, Warehouse, HandHelping, Receipt, LayoutDashboard, TrendingUp, TrendingDown, BarChart3, FileText } from 'lucide-react'
+import { ListTree, Menu, PackagePlus, X, Settings, ShoppingBasket, Warehouse, HandHelping, Receipt, LayoutDashboard, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -17,19 +17,18 @@ const Navbar = () => {
   const canAccessFeatures = dbUser?.isApproved && dbUser?.role;
 
   const navLinks = [
-    { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { href: '/category', label: 'Catégories', icon: ListTree },
     { href: '/products', label: 'Produits', icon: ShoppingBasket },
     { href: '/alimentations', label: 'Alimentations', icon: TrendingUp },
     { href: '/octrois', label: 'Octrois', icon: TrendingDown },
-    { href: '/statistiques', label: 'Statistiques', icon: BarChart3 },
-    { href: '/etats', label: 'États', icon: FileText },
     { href: '/transactions', label: 'Transactions', icon: Receipt },
+    { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+    { href: '/statistiques', label: 'Statistiques', icon: BarChart3 },
   ]
 
   // Filtrer les liens selon les permissions
-  // Ne montrer aucun lien pendant le chargement ou si l'utilisateur n'a pas accès
-  let visibleLinks = (loading || !session?.user) ? [] : (canAccessFeatures || isAdmin ? navLinks : []);
+  // Afficher les liens si l'utilisateur a accès (même pendant le chargement pour éviter menu vide)
+  let visibleLinks = (!session?.user) ? [] : (canAccessFeatures || isAdmin || loading ? navLinks : []);
   
   // Ajouter le lien admin si l'utilisateur est administrateur
   const allNavLinks = isAdmin

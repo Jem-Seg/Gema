@@ -88,6 +88,15 @@ export default function Home() {
   }
 
   if (!user) {
+    // Rediriger vers la page de connexion si non authentifié
+    if (status === 'unauthenticated') {
+      router.push('/sign-in');
+      return (
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="loading loading-spinner loading-lg"></div>
+        </div>
+      );
+    }
     return (
       <Wrapper>
         <div className="hero min-h-[400px]">
