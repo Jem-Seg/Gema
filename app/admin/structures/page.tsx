@@ -1,4 +1,7 @@
 "use client";
+// Force dynamic rendering (évite erreurs prerendering)
+export const dynamic = 'force-dynamic';
+
 
 import { Suspense } from 'react';
 import StructuresContent from './StructuresContent';

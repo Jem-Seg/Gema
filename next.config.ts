@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   // Strict mode activé pour détection bugs React
   reactStrictMode: true,
   
+  // Désactiver prerendering pour pages dynamiques
+  experimental: {
+    // Optimisations PostgreSQL
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
+  },
+  
   // Configuration images sécurisée
   images: {
     remotePatterns: [
