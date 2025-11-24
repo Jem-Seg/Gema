@@ -27,15 +27,16 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "daisyui": "^5.4.7",
+    "autoprefixer": "^10.4.20",
+    "daisyui": "^4.12.14",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "postcss": "^8.4.49",
     "prisma": "^6.19.0",
-    "tailwindcss": "^4",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }
 }
