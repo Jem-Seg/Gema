@@ -1,15 +1,14 @@
 import prisma from '@/lib/prisma';
 
-// Types pour les statuts d'alimentation
+// Types pour les statuts d'alimentation - WORKFLOW SIMPLIFIÉ
 export type AlimentationStatus = 
-  | "SAISIE" 
-  | "INSTANCE_FINANCIER" 
-  | "VALIDE_FINANCIER" 
-  | "INSTANCE_DIRECTEUR" 
-  | "VALIDE_DIRECTEUR" 
-  | "INSTANCE_ORDONNATEUR" 
-  | "VALIDE_ORDONNATEUR" 
-  | "REJETE";
+  | "EN_ATTENTE"           // Création par Agent de saisie
+  | "EN_INSTANCE_ACHATS"   // Responsable achats demande modifications
+  | "VALIDE_ACHATS"        // Validé par Responsable achats → va au Responsable financier
+  | "EN_INSTANCE_FINANCIER" // Responsable financier demande modifications
+  | "VALIDE_FINANCIER"     // Validé par Responsable financier → va à l'Ordonnateur
+  | "VALIDE_ORDONNATEUR"   // Validation finale + mise à jour stock
+  | "REJETE";              // Rejeté par Ordonnateur
 
 // Interface pour la création d'une alimentation
 export interface CreateAlimentationData {
@@ -59,7 +58,7 @@ export async function createAlimentation(data: CreateAlimentationData) {
         prixUnitaire: data.prixUnitaire,
         fournisseurNom: data.fournisseurNom,
         fournisseurNIF: data.fournisseurNIF,
-        statut: "INSTANCE_FINANCIER",
+        statut: "EN_ATTENTE", // Création par Agent de saisie → en attente validation Responsable achats
         ministereId: data.ministereId,
         structureId: data.structureId,
         createurId: data.createurId
@@ -81,16 +80,16 @@ export async function createAlimentation(data: CreateAlimentationData) {
         entityId: alimentation.id,
         action: "CREATION",
         ancienStatut: "",
-        nouveauStatut: "INSTANCE_FINANCIER",
+        nouveauStatut: "EN_ATTENTE",
         userId: data.createurId,
-        userRole: "Responsable Achats"
+        userRole: "Agent de saisie"
       }
     });
 
     return {
       success: true,
       data: alimentation,
-      message: `Alimentation ${numero} créée avec succès`
+      message: `Alimentation ${numero} créée avec succès et envoyée au Responsable achats`
     };
   } catch (error) {
     console.error('Erreur lors de la création de l\'alimentation:', error);
@@ -101,7 +100,7 @@ export async function createAlimentation(data: CreateAlimentationData) {
   }
 }
 
-// Mettre en instance une alimentation
+// Mettre en instance une alimentation - WORKFLOW SIMPLIFIÉ
 export async function instanceAlimentation(
   alimentationId: string, 
   userId: string, 
@@ -124,35 +123,28 @@ export async function instanceAlimentation(
 
     // Déterminer le nouveau statut selon le rôle
     let nouveauStatut: AlimentationStatus;
+    
     switch (userRole) {
-      case "Directeur":
-        if (alimentation.statut !== "VALIDE_FINANCIER") {
-          if (alimentation.statut === "INSTANCE_FINANCIER") {
-            return { success: false, message: "Cette alimentation doit d'abord être validée par le Responsable financier avant de pouvoir être mise en instance" };
-          } else if (alimentation.statut === "VALIDE_DIRECTEUR") {
-            return { success: false, message: "Cette alimentation a déjà été validée par le Directeur" };
-          }
-          return { success: false, message: "Vous ne pouvez mettre en instance que les alimentations validées par le Responsable financier" };
+      case "Responsable Achats":
+      case "Responsable achats":
+        // Responsable achats peut mettre en instance seulement si EN_ATTENTE
+        if (alimentation.statut !== "EN_ATTENTE") {
+          return { success: false, message: "Vous ne pouvez mettre en instance que les alimentations en attente" };
         }
-        // Retourne au Responsable achats pour modification
-        nouveauStatut = "INSTANCE_FINANCIER";
+        nouveauStatut = "EN_INSTANCE_ACHATS"; // Retourne à l'Agent de saisie pour modifications
         break;
-      case "Ordonnateur":
-        if (alimentation.statut !== "VALIDE_DIRECTEUR") {
-          if (alimentation.statut === "VALIDE_FINANCIER") {
-            return { success: false, message: "Cette alimentation doit d'abord être validée par le Directeur de la structure" };
-          } else if (alimentation.statut === "INSTANCE_ORDONNATEUR") {
-            return { success: false, message: "Cette alimentation est déjà en instance ordonnateur" };
-          } else if (alimentation.statut === "INSTANCE_FINANCIER") {
-            return { success: false, message: "Cette alimentation est en cours de traitement par le Responsable financier" };
-          }
-          return { success: false, message: "Vous ne pouvez mettre en instance que les alimentations validées par le Directeur" };
+        
+      case "Responsable Financier":
+      case "Responsable financier":
+        // Responsable financier peut mettre en instance seulement si VALIDE_ACHATS
+        if (alimentation.statut !== "VALIDE_ACHATS") {
+          return { success: false, message: "Vous ne pouvez mettre en instance que les alimentations validées par le Responsable achats" };
         }
-        // Retourne au Directeur qui pourra mettre en instance vers le Responsable achats
-        nouveauStatut = "VALIDE_FINANCIER";
+        nouveauStatut = "EN_INSTANCE_FINANCIER"; // Retourne à l'Agent de saisie pour modifications
         break;
+        
       default:
-        return { success: false, message: "Rôle non autorisé pour cette action" };
+        return { success: false, message: "Votre rôle ne permet pas cette action" };
     }
 
     // Mettre à jour l'alimentation
@@ -181,7 +173,7 @@ export async function instanceAlimentation(
     return {
       success: true,
       data: updatedAlimentation,
-      message: `Alimentation mise en instance (${nouveauStatut})`
+      message: `Alimentation renvoyée à l'Agent de saisie pour modifications`
     };
   } catch (error) {
     console.error('Erreur lors de la mise en instance:', error);
@@ -189,7 +181,7 @@ export async function instanceAlimentation(
   }
 }
 
-// Valider une alimentation
+// Valider une alimentation - WORKFLOW SIMPLIFIÉ
 export async function validateAlimentation(
   alimentationId: string, 
   userId: string, 
@@ -215,45 +207,35 @@ export async function validateAlimentation(
     let shouldUpdateStock = false;
 
     switch (userRole) {
-      case "Directeur Financier":
-      case "Directeur financier":
-      case "Responsable financier":
-      case "Responsable Financier":
-        if (alimentation.statut !== "INSTANCE_FINANCIER") {
-          if (alimentation.statut === "VALIDE_FINANCIER") {
-            return { success: false, message: "Cette alimentation a déjà été validée par le Responsable financier" };
-          } else if (alimentation.statut === "SAISIE") {
-            return { success: false, message: "Cette alimentation est en cours de saisie" };
-          }
-          return { success: false, message: "Vous ne pouvez valider que les alimentations en instance financier" };
+      case "Responsable Achats":
+      case "Responsable achats":
+        // Peut valider si EN_ATTENTE ou EN_INSTANCE_ACHATS
+        if (alimentation.statut !== "EN_ATTENTE" && alimentation.statut !== "EN_INSTANCE_ACHATS") {
+          return { success: false, message: "Vous ne pouvez valider que les alimentations en attente ou en instance achats" };
         }
-        nouveauStatut = "VALIDE_FINANCIER";
+        nouveauStatut = "VALIDE_ACHATS"; // Passe au Responsable financier
         break;
-      case "Directeur":
+        
+      case "Responsable Financier":
+      case "Responsable financier":
+        // Peut valider si VALIDE_ACHATS ou EN_INSTANCE_FINANCIER
+        if (alimentation.statut !== "VALIDE_ACHATS" && alimentation.statut !== "EN_INSTANCE_FINANCIER") {
+          return { success: false, message: "Vous ne pouvez valider que les alimentations validées par le Responsable achats ou en instance financier" };
+        }
+        nouveauStatut = "VALIDE_FINANCIER"; // Passe à l'Ordonnateur
+        break;
+        
+      case "Ordonnateur":
+        // Peut valider si VALIDE_FINANCIER
         if (alimentation.statut !== "VALIDE_FINANCIER") {
-          if (alimentation.statut === "INSTANCE_FINANCIER") {
-            return { success: false, message: "Cette alimentation doit d'abord être validée par le Responsable financier" };
-          } else if (alimentation.statut === "INSTANCE_DIRECTEUR") {
-            return { success: false, message: "Cette alimentation est en instance. Utilisez le bouton 'Mettre en instance' pour la renvoyer au Responsable achats avec vos observations" };
-          }
           return { success: false, message: "Vous ne pouvez valider que les alimentations validées par le Responsable financier" };
         }
-        nouveauStatut = "VALIDE_DIRECTEUR";
+        nouveauStatut = "VALIDE_ORDONNATEUR"; // Validation finale
+        shouldUpdateStock = true; // Mise à jour du stock
         break;
-      case "Ordonnateur":
-        if (alimentation.statut !== "INSTANCE_ORDONNATEUR" && alimentation.statut !== "VALIDE_DIRECTEUR") {
-          if (alimentation.statut === "VALIDE_FINANCIER") {
-            return { success: false, message: "Cette alimentation doit d'abord être validée par le Directeur de la structure" };
-          } else if (alimentation.statut === "INSTANCE_FINANCIER") {
-            return { success: false, message: "Cette alimentation est en cours de traitement par le Responsable financier" };
-          }
-          return { success: false, message: "Vous ne pouvez valider que les alimentations validées par le Directeur ou en instance ordonnateur" };
-        }
-        nouveauStatut = "VALIDE_ORDONNATEUR";
-        shouldUpdateStock = true;
-        break;
+        
       default:
-        return { success: false, message: "Rôle non autorisé pour cette action" };
+        return { success: false, message: "Votre rôle ne permet pas cette action" };
     }
 
     // Transaction atomique pour mettre à jour l'alimentation et le stock
@@ -264,7 +246,7 @@ export async function validateAlimentation(
         data: {
           statut: nouveauStatut,
           observations,
-          isLocked: shouldUpdateStock // Verrouiller si c'est la validation finale
+          isLocked: shouldUpdateStock // Verrouiller si validation finale
         }
       });
 
@@ -289,7 +271,7 @@ export async function validateAlimentation(
             quantity: {
               increment: alimentation.quantite
             },
-            price: alimentation.prixUnitaire // Mettre à jour avec le prix unitaire de l'alimentation
+            price: alimentation.prixUnitaire
           }
         });
 
@@ -303,7 +285,7 @@ export async function validateAlimentation(
             structureId: alimentation.structureId,
             fournisseurNom: alimentation.fournisseurNom,
             fournisseurNIF: alimentation.fournisseurNIF,
-            alimentationId: alimentation.id // Lier la transaction à son alimentation source
+            alimentationId: alimentation.id
           }
         });
       }
@@ -330,7 +312,7 @@ export async function validateAlimentation(
       data: result,
       message: shouldUpdateStock 
         ? `Alimentation validée et stock mis à jour (+${alimentation.quantite} ${alimentation.produit.unit})`
-        : `Alimentation validée (${nouveauStatut})`
+        : `Alimentation validée et envoyée à l'étape suivante`
     };
   } catch (error) {
     console.error('Erreur lors de la validation:', error);
@@ -338,7 +320,7 @@ export async function validateAlimentation(
   }
 }
 
-// Rejeter une alimentation
+// Rejeter une alimentation - WORKFLOW SIMPLIFIÉ
 export async function rejectAlimentation(
   alimentationId: string, 
   userId: string, 
@@ -363,8 +345,8 @@ export async function rejectAlimentation(
       return { success: false, message: "Seul l'ordonnateur peut rejeter une alimentation" };
     }
 
-    if (alimentation.statut !== "INSTANCE_ORDONNATEUR" && alimentation.statut !== "VALIDE_DIRECTEUR") {
-      return { success: false, message: "Statut invalide pour cette action" };
+    if (alimentation.statut !== "VALIDE_FINANCIER") {
+      return { success: false, message: "Vous ne pouvez rejeter que les alimentations validées par le Responsable financier" };
     }
 
     // Mettre à jour l'alimentation
@@ -373,7 +355,6 @@ export async function rejectAlimentation(
       data: {
         statut: "REJETE",
         observations
-        // Ne pas verrouiller pour permettre au Responsable achats de supprimer ou à l'Admin de modifier
       }
     });
 
@@ -402,7 +383,7 @@ export async function rejectAlimentation(
   }
 }
 
-// Récupérer les alimentations selon le rôle utilisateur
+// Récupérer les alimentations selon le rôle utilisateur - WORKFLOW SIMPLIFIÉ
 export async function getAlimentations(userId: string, userRole: string, structureId?: string, ministereId?: string) {
   try {
     const whereClause: { structureId?: string; ministereId?: string } = {};
@@ -410,16 +391,15 @@ export async function getAlimentations(userId: string, userRole: string, structu
     // Filtrer selon le rôle
     switch (userRole) {
       case "Agent de saisie":
-      case "Directeur":
-        if (!structureId) {
-          return { success: false, message: "Structure non définie" };
+        // Agent de saisie voit toutes les alimentations de son ministère (peut intervenir sur toutes les structures)
+        if (!ministereId) {
+          return { success: false, message: "Ministère non défini" };
         }
-        whereClause.structureId = structureId;
+        whereClause.ministereId = ministereId;
         break;
       case "Responsable Achats":
       case "Responsable achats":
-      case "Directeur Financier":
-      case "Directeur financier":
+      case "Responsable Financier":
       case "Responsable financier":
       case "Ordonnateur":
         if (!ministereId) {
@@ -428,7 +408,7 @@ export async function getAlimentations(userId: string, userRole: string, structu
         whereClause.ministereId = ministereId;
         break;
       case "Admin":
-        // Admin peut voir toutes les alimentations, pas de filtre
+        // Admin peut voir toutes les alimentations
         break;
       default:
         return { success: false, message: "Rôle non reconnu" };

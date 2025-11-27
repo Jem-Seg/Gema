@@ -3,10 +3,12 @@ import prisma from '@/lib/prisma';
 import { formDataType, OrderItem, ProductOverviewStats, Produit, StockSummary, Transaction, StructureStatistics, ProductStatistics } from '@/type';
 import { Category } from '@prisma/client';
 /**
- * Vérifie si un utilisateur peut créer/modifier/supprimer des catégories dans une structure donnée
+ * Vérifie si un utilisateur peut créer/modifier/supprimer des catégories et produits
+ * WORKFLOW SIMPLIFIÉ:
  * - Admin : tous les droits
- * - Agent de saisie : seulement sa propre structure
+ * - Agent de saisie : toutes les structures de son ministère
  * - Responsable Achats : toutes les structures de son ministère
+ * - Autres rôles : pas de gestion des catégories/produits
  */
 async function canManageCategoriesInStructure(userId: string, structureId: string): Promise<boolean> {
   try {
@@ -28,13 +30,8 @@ async function canManageCategoriesInStructure(userId: string, structureId: strin
 
     if (!targetStructure) return false;
 
-    // Agent de saisie : seulement sa propre structure
-    if (user.role?.name === "Agent de saisie") {
-      return user.structureId === structureId;
-    }
-
-    // Responsable Achats : toutes les structures de son ministère
-    if (user.role?.name === "Responsable Achats" || user.role?.name === "Responsable achats") {
+    // Agent de saisie et Responsable Achats : toutes les structures de leur ministère
+    if (user.role?.name === "Agent de saisie" || user.role?.name === "Responsable Achats" || user.role?.name === "Responsable achats") {
       return user.ministereId === targetStructure.ministereId;
     }
 

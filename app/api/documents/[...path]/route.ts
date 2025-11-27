@@ -6,9 +6,11 @@ import { existsSync } from 'fs';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
+    const { path } = await params;
+    
     // Vérifier l'authentification
     const session = await auth();
     if (!session) {
@@ -19,7 +21,7 @@ export async function GET(
     }
 
     // Construire le chemin du fichier
-    const filePath = params.path.join('/');
+    const filePath = path.join('/');
     const fullPath = join(process.cwd(), 'public', 'uploads', filePath);
 
     // Vérifier que le fichier existe

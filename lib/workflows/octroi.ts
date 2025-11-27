@@ -1,14 +1,14 @@
 import prisma from '@/lib/prisma';
 
-// Types pour les statuts d'octroi
+// Types pour les statuts d'octroi - WORKFLOW SIMPLIFIÉ
 export type OctroiStatus =
-  | "SAISIE"
-  | "INSTANCE_DIRECTEUR"
-  | "VALIDE_DIRECTEUR"
-  | "VALIDE_FINANCIER"
-  | "INSTANCE_ORDONNATEUR"
-  | "VALIDE_ORDONNATEUR"
-  | "REJETE";
+  | "EN_ATTENTE"           // Création par Agent de saisie
+  | "EN_INSTANCE_ACHATS"   // Responsable achats demande modifications
+  | "VALIDE_ACHATS"        // Validé par Responsable achats → va au Responsable financier
+  | "EN_INSTANCE_FINANCIER" // Responsable financier demande modifications  
+  | "VALIDE_FINANCIER"     // Validé par Responsable financier → va à l'Ordonnateur
+  | "VALIDE_ORDONNATEUR"   // Validation finale + mise à jour stock
+  | "REJETE";              // Rejeté par Ordonnateur
 
 // Interface pour la création d'un octroi
 export interface CreateOctroiData {
@@ -93,7 +93,7 @@ export async function createOctroi(data: CreateOctroiData) {
         beneficiaireNom: data.beneficiaireNom,
         beneficiaireTelephone: data.beneficiaireTelephone,
         motif: data.motif,
-        statut: "SAISIE",
+        statut: "EN_ATTENTE",
         ministereId: data.ministereId,
         structureId: data.structureId,
         createurId: data.createurId
@@ -115,7 +115,7 @@ export async function createOctroi(data: CreateOctroiData) {
         entityId: octroi.id,
         action: "CREATION",
         ancienStatut: "",
-        nouveauStatut: "SAISIE",
+        nouveauStatut: "EN_ATTENTE",
         userId: data.createurId,
         userRole: data.userRole
       }
@@ -124,7 +124,7 @@ export async function createOctroi(data: CreateOctroiData) {
     return {
       success: true,
       data: octroi,
-      message: `Octroi ${numero} créé avec succès`
+      message: `Octroi ${numero} créé avec succès et envoyé au Responsable achats`
     };
   } catch (error) {
     console.error('Erreur lors de la création de l\'octroi:', error);
@@ -135,7 +135,7 @@ export async function createOctroi(data: CreateOctroiData) {
   }
 }
 
-// Mettre en instance un octroi
+// Mettre en instance un octroi - WORKFLOW SIMPLIFIÉ
 export async function instanceOctroi(
   octroiId: string,
   userId: string,
@@ -156,25 +156,30 @@ export async function instanceOctroi(
       return { success: false, message: "Octroi verrouillé" };
     }
 
-    // Déterminer le nouveau statut selon le rôle et le statut actuel
+    // Déterminer le nouveau statut selon le rôle
     let nouveauStatut: OctroiStatus;
-
-    // Le directeur peut mettre en instance depuis SAISIE ou INSTANCE_DIRECTEUR (retour de l'ordonnateur)
-    if (userRole === "Directeur" || userRole === "Directeur de la structure" || userRole === "Directeur de structure") {
-      if (octroi.statut !== "SAISIE" && octroi.statut !== "INSTANCE_DIRECTEUR") {
-        return { success: false, message: "Statut invalide pour cette action" };
-      }
-      nouveauStatut = "INSTANCE_DIRECTEUR";
-    }
-    // L'ordonnateur met en instance depuis VALIDE_FINANCIER
-    else if (userRole === "Ordonnateur") {
-      if (octroi.statut !== "VALIDE_FINANCIER") {
-        return { success: false, message: "Statut invalide pour cette action" };
-      }
-      nouveauStatut = "INSTANCE_ORDONNATEUR";
-    }
-    else {
-      return { success: false, message: "Rôle non autorisé pour cette action" };
+    
+    switch (userRole) {
+      case "Responsable Achats":
+      case "Responsable achats":
+        // Responsable achats peut mettre en instance seulement si EN_ATTENTE
+        if (octroi.statut !== "EN_ATTENTE") {
+          return { success: false, message: "Vous ne pouvez mettre en instance que les octrois en attente" };
+        }
+        nouveauStatut = "EN_INSTANCE_ACHATS"; // Retourne à l'Agent de saisie pour modifications
+        break;
+        
+      case "Responsable Financier":
+      case "Responsable financier":
+        // Responsable financier peut mettre en instance seulement si VALIDE_ACHATS
+        if (octroi.statut !== "VALIDE_ACHATS") {
+          return { success: false, message: "Vous ne pouvez mettre en instance que les octrois validés par le Responsable achats" };
+        }
+        nouveauStatut = "EN_INSTANCE_FINANCIER"; // Retourne à l'Agent de saisie pour modifications
+        break;
+        
+      default:
+        return { success: false, message: "Votre rôle ne permet pas cette action" };
     }
 
     // Mettre à jour l'octroi
@@ -203,7 +208,7 @@ export async function instanceOctroi(
     return {
       success: true,
       data: updatedOctroi,
-      message: `Octroi mis en instance. Il retourne au responsable des achats ou agent de saisie pour modification.`
+      message: `Octroi renvoyé à l'Agent de saisie pour modifications`
     };
   } catch (error) {
     console.error('Erreur lors de la mise en instance:', error);
@@ -211,7 +216,7 @@ export async function instanceOctroi(
   }
 }
 
-// Valider un octroi
+// Valider un octroi - WORKFLOW SIMPLIFIÉ
 export async function validateOctroi(
   octroiId: string,
   userId: string,
@@ -232,42 +237,49 @@ export async function validateOctroi(
       return { success: false, message: "Octroi verrouillé" };
     }
 
-    // Déterminer le nouveau statut selon le rôle et le statut actuel
+    // Déterminer le nouveau statut selon le rôle
     let nouveauStatut: OctroiStatus;
     let shouldUpdateStock = false;
 
-    if (userRole === "Directeur" || userRole === "Directeur de la structure" || userRole === "Directeur de structure") {
-      // Le directeur valide depuis SAISIE ou INSTANCE_DIRECTEUR
-      if (octroi.statut !== "SAISIE" && octroi.statut !== "INSTANCE_DIRECTEUR") {
-        return { success: false, message: "Statut invalide pour cette action" };
-      }
-      nouveauStatut = "VALIDE_DIRECTEUR";
-    }
-    else if (userRole === "Directeur Financier" || userRole === "Responsable financier" || userRole === "Directeur financier") {
-      // Le directeur financier valide depuis VALIDE_DIRECTEUR
-      if (octroi.statut !== "VALIDE_DIRECTEUR") {
-        return { success: false, message: "Statut invalide pour cette action" };
-      }
-      nouveauStatut = "VALIDE_FINANCIER";
-    }
-    else if (userRole === "Ordonnateur") {
-      // L'ordonnateur valide depuis VALIDE_FINANCIER ou INSTANCE_ORDONNATEUR
-      if (octroi.statut !== "VALIDE_FINANCIER" && octroi.statut !== "INSTANCE_ORDONNATEUR") {
-        return { success: false, message: "Statut invalide pour cette action" };
-      }
-      nouveauStatut = "VALIDE_ORDONNATEUR";
-      shouldUpdateStock = true; // C'est seulement à ce stade qu'on mouvemente le stock
-    }
-    else {
-      return { success: false, message: "Rôle non autorisé pour cette action" };
-    }
-
-    // Vérifier le stock avant validation finale
-    if (shouldUpdateStock && octroi.produit.quantity < octroi.quantite) {
-      return {
-        success: false,
-        message: `Stock insuffisant. Disponible: ${octroi.produit.quantity}, Demandé: ${octroi.quantite}`
-      };
+    switch (userRole) {
+      case "Responsable Achats":
+      case "Responsable achats":
+        // Peut valider si EN_ATTENTE ou EN_INSTANCE_ACHATS
+        if (octroi.statut !== "EN_ATTENTE" && octroi.statut !== "EN_INSTANCE_ACHATS") {
+          return { success: false, message: "Vous ne pouvez valider que les octrois en attente ou en instance achats" };
+        }
+        nouveauStatut = "VALIDE_ACHATS"; // Passe au Responsable financier
+        break;
+        
+      case "Responsable Financier":
+      case "Responsable financier":
+        // Peut valider si VALIDE_ACHATS ou EN_INSTANCE_FINANCIER
+        if (octroi.statut !== "VALIDE_ACHATS" && octroi.statut !== "EN_INSTANCE_FINANCIER") {
+          return { success: false, message: "Vous ne pouvez valider que les octrois validés par le Responsable achats ou en instance financier" };
+        }
+        nouveauStatut = "VALIDE_FINANCIER"; // Passe à l'Ordonnateur
+        break;
+        
+      case "Ordonnateur":
+        // Peut valider si VALIDE_FINANCIER
+        if (octroi.statut !== "VALIDE_FINANCIER") {
+          return { success: false, message: "Vous ne pouvez valider que les octrois validés par le Responsable financier" };
+        }
+        
+        // Vérifier le stock avant validation finale
+        if (octroi.produit.quantity < octroi.quantite) {
+          return {
+            success: false,
+            message: `Stock insuffisant. Disponible: ${octroi.produit.quantity}, Demandé: ${octroi.quantite}`
+          };
+        }
+        
+        nouveauStatut = "VALIDE_ORDONNATEUR"; // Validation finale
+        shouldUpdateStock = true; // Mise à jour du stock
+        break;
+        
+      default:
+        return { success: false, message: "Votre rôle ne permet pas cette action" };
     }
 
     // Transaction atomique pour mettre à jour l'octroi et le stock
@@ -278,11 +290,11 @@ export async function validateOctroi(
         data: {
           statut: nouveauStatut,
           observations,
-          isLocked: shouldUpdateStock // Verrouiller si c'est la validation finale de l'ordonnateur
+          isLocked: shouldUpdateStock // Verrouiller si validation finale
         }
       });
 
-      // Si validation ordonnateur : mettre à jour le stock et créer la transaction
+      // Si validation ordonnateur : mettre à jour le stock
       if (shouldUpdateStock) {
         // Vérifier que le produit existe
         const produit = await tx.produit.findFirst({
@@ -337,19 +349,12 @@ export async function validateOctroi(
       return updatedOctroi;
     });
 
-    let message = "";
-    if (userRole === "Directeur" || userRole === "Directeur de la structure") {
-      message = "Octroi validé. Il est transmis au directeur financier pour validation.";
-    } else if (userRole === "Directeur Financier" || userRole === "Responsable financier" || userRole === "Directeur financier") {
-      message = "Octroi validé. Il est transmis à l'ordonnateur pour validation finale.";
-    } else if (userRole === "Ordonnateur") {
-      message = `Octroi validé par l'ordonnateur. Stock mis à jour (-${octroi.quantite} ${octroi.produit.unit}). Transaction de sortie créée.`;
-    }
-
     return {
       success: true,
       data: result,
-      message
+      message: shouldUpdateStock 
+        ? `Octroi validé et stock mis à jour (-${octroi.quantite} ${octroi.produit.unit})`
+        : `Octroi validé et envoyé à l'étape suivante`
     };
   } catch (error) {
     console.error('Erreur lors de la validation:', error);
@@ -357,7 +362,7 @@ export async function validateOctroi(
   }
 }
 
-// Rejeter un octroi
+// Rejeter un octroi - WORKFLOW SIMPLIFIÉ
 export async function rejectOctroi(
   octroiId: string,
   userId: string,
@@ -382,19 +387,17 @@ export async function rejectOctroi(
       return { success: false, message: "Seul l'ordonnateur peut rejeter un octroi" };
     }
 
-    // L'ordonnateur peut rejeter depuis VALIDE_FINANCIER ou INSTANCE_ORDONNATEUR
-    if (octroi.statut !== "VALIDE_FINANCIER" && octroi.statut !== "INSTANCE_ORDONNATEUR") {
-      return { success: false, message: "Statut invalide pour cette action" };
+    // L'ordonnateur peut rejeter seulement si VALIDE_FINANCIER
+    if (octroi.statut !== "VALIDE_FINANCIER") {
+      return { success: false, message: "Vous ne pouvez rejeter que les octrois validés par le Responsable financier" };
     }
 
     // Mettre à jour l'octroi avec statut REJETÉ
-    // Important : pas de mouvement de stock lors d'un rejet
     const updatedOctroi = await prisma.octroi.update({
       where: { id: octroiId },
       data: {
         statut: "REJETE",
-        observations,
-        isLocked: true // Verrouiller après rejet, peut être supprimé par agent/responsable
+        observations
       }
     });
 
@@ -415,7 +418,7 @@ export async function rejectOctroi(
     return {
       success: true,
       data: updatedOctroi,
-      message: "Octroi rejeté. Il retourne au responsable des achats ou agent de saisie. Aucun mouvement de stock n'a été effectué. L'octroi peut être supprimé définitivement."
+      message: "Octroi rejeté"
     };
   } catch (error) {
     console.error('Erreur lors du rejet:', error);
@@ -423,7 +426,7 @@ export async function rejectOctroi(
   }
 }
 
-// Récupérer les octrois selon le rôle utilisateur
+// Récupérer les octrois selon le rôle utilisateur - WORKFLOW SIMPLIFIÉ
 export async function getOctrois(userId: string, userRole: string, structureId?: string, ministereId?: string) {
   try {
     const whereClause: { structureId?: string; ministereId?: string } = {};
@@ -431,16 +434,15 @@ export async function getOctrois(userId: string, userRole: string, structureId?:
     // Filtrer selon le rôle
     switch (userRole) {
       case "Agent de saisie":
-      case "Directeur":
-        if (!structureId) {
-          return { success: false, message: "Structure non définie" };
+        // Agent de saisie voit tous les octrois de son ministère (peut intervenir sur toutes les structures)
+        if (!ministereId) {
+          return { success: false, message: "Ministère non défini" };
         }
-        whereClause.structureId = structureId;
+        whereClause.ministereId = ministereId;
         break;
       case "Responsable Achats":
       case "Responsable achats":
-      case "Directeur Financier":
-      case "Directeur financier":
+      case "Responsable Financier":
       case "Responsable financier":
       case "Ordonnateur":
         if (!ministereId) {
@@ -449,7 +451,7 @@ export async function getOctrois(userId: string, userRole: string, structureId?:
         whereClause.ministereId = ministereId;
         break;
       case "Admin":
-        // Admin peut voir tous les octrois, pas de filtre
+        // Admin peut voir tous les octrois
         break;
       default:
         return { success: false, message: "Rôle non reconnu" };

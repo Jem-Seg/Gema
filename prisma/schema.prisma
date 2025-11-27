@@ -33,8 +33,8 @@ model Structure {
   ministereId String
   ministere   Ministere @relation(fields: [ministereId], references: [id], onDelete: Cascade)
 
-  users          User[]
-  categories     Category[]
+  // SUPPRIMÉ: Plus d'utilisateurs ni catégories rattachés aux structures
+  // Les catégories sont au niveau du ministère
   produits       Produit[]
   transactions   Transaction[]
   alimentations  Alimentation[]
@@ -48,13 +48,12 @@ model User {
   firstName   String
   password    String     // Mot de passe haché
   
-  // Tous les utilisateurs sont rattachés au ministère (après approbation par l'admin)
+  // Tous les utilisateurs sont rattachés au ministère (obligatoire après approbation)
   ministereId String?
   ministere   Ministere? @relation(fields: [ministereId], references: [id])
   
-  // Certains utilisateurs sont également affectés à une structure (Agent de saisie, Directeur)
-  structureId String?
-  structure   Structure? @relation(fields: [structureId], references: [id])
+  // SUPPRIMÉ: Plus de rattachement à une structure spécifique
+  // Les agents de saisie travaillent sur toutes les structures du ministère
   
   roleId      String? // Optionnel car assigné par l'admin
   role        Role?      @relation(fields: [roleId], references: [id])
@@ -70,9 +69,9 @@ model User {
 
 model Role {
   id          String     @id @default(cuid())
-  name        String   @unique // Rôles: "Agent de saisie", "Directeur" (avec structure), "Responsable Achats", "Directeur Financier", "Ordonnateur" (sans structure)
+  name        String   @unique // Rôles simplifiés: "Agent de saisie", "Responsable Achats", "Responsable Financier", "Ordonnateur" (DIRECTEUR SUPPRIMÉ)
   description String
-  requiresStructure Boolean @default(false) // true pour les rôles qui nécessitent une affectation à une structure
+  // SUPPRIMÉ: requiresStructure - Plus de rattachement aux structures
   createdAt   DateTime @default(now())
 
   users User[]
@@ -83,9 +82,8 @@ model Category {
   name        String
   description String
   ministereId String
-  structureId String
+  // SUPPRIMÉ: structureId - Les catégories sont au niveau du ministère
   ministere   Ministere @relation(fields: [ministereId], references: [id])
-  structure   Structure @relation(fields: [structureId], references: [id])
 
   produits Produit[]
 }
@@ -155,14 +153,15 @@ model Alimentation {
   fournisseurNom String
   fournisseurNIF String?
   
-  // Workflow et statut
-  statut      String   @default("SAISIE") // SAISIE, INSTANCE_FINANCIER, VALIDE_FINANCIER, INSTANCE_DIRECTEUR, VALIDE_DIRECTEUR, INSTANCE_ORDONNATEUR, VALIDE_ORDONNATEUR, REJETE
+  // Workflow simplifié: Agent saisie → Responsable achats → Responsable financier → Ordonnateur
+  // Statuts: EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, VALIDE_FINANCIER, VALIDE_ORDONNATEUR, REJETE
+  statut      String   @default("EN_ATTENTE")
   observations String?
   
   // Métadonnées
   ministereId String
   structureId String
-  createurId  String   // ID du créateur (Responsable Achats)
+  createurId  String   // ID du créateur (Agent de saisie)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
@@ -237,14 +236,15 @@ model Octroi {
   beneficiaireTelephone String?
   motif                 String?
   
-  // Workflow et statut
-  statut      String   @default("SAISIE") // SAISIE, INSTANCE_DIRECTEUR, VALIDE_DIRECTEUR, VALIDE_FINANCIER, INSTANCE_ORDONNATEUR, VALIDE_ORDONNATEUR, REJETE
+  // Workflow simplifié: Agent saisie → Responsable achats → Responsable financier → Ordonnateur
+  // Statuts: EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, VALIDE_FINANCIER, VALIDE_ORDONNATEUR, REJETE
+  statut      String   @default("EN_ATTENTE")
   observations String?
   
   // Métadonnées
   ministereId String
   structureId String
-  createurId  String   // ID du créateur (Responsable Achats ou Agent Structure)
+  createurId  String   // ID du créateur (Agent de saisie)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
