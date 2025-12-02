@@ -13,9 +13,7 @@ type MinistereWithStructures = Ministere & {
 }
 
 type CategoryWithDetails = Category & {
-  structure: Structure & {
-    ministere: Ministere
-  }
+  ministere: Ministere
 }
 
 const CategoryPage = () => {
@@ -24,7 +22,6 @@ const CategoryPage = () => {
 
   const [name, setName] = React.useState('')
   const [description, setDescription] = React.useState('')
-  const [selectedStructureId, setSelectedStructureId] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   const [editMode, setEditMode] = React.useState(false)
   const [editingCategoryId, setEditingCategoryId] = React.useState<string | null>(null)
@@ -37,9 +34,9 @@ const CategoryPage = () => {
     message: string;
   } | null>(null)
 
-  // État pour le filtrage par structure
-  const [structures, setStructures] = React.useState<any[]>([])
-  const [selectedStructureFilter, setSelectedStructureFilter] = React.useState<string>('ALL')
+  // États pour la pagination
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [itemsPerPage, setItemsPerPage] = React.useState(10)
 
   // Charger les informations de permissions de l'utilisateur
   React.useEffect(() => {
@@ -89,34 +86,26 @@ const CategoryPage = () => {
     loadCategories();
   }, [status === 'authenticated', user]);
 
-
-  // Charger les structures disponibles pour le filtrage
-  React.useEffect(() => {
-    if (status !== 'authenticated' || !(user as any)?.id) return;
-    if (!userPermissions || userPermissions.scope === 'structure') return; // Pas besoin de filtrage si scope = structure
-
-    const loadStructures = async () => {
-      try {
-        const userStructures = await getUserMinistereStructures((user as any).id);
-        // Aplatir la liste des structures de tous les ministères
-        const allStructures = userStructures.flatMap(m => 
-          m.structures?.map(s => ({ ...s, ministereName: m.name, ministereAbrev: m.abreviation })) || []
-        );
-        setStructures(allStructures);
-      } catch (error) {
-        console.error('Erreur lors du chargement des structures:', error);
-      }
-    };
-    loadStructures();
-  }, [status, user, userPermissions]);
-
-  // Filtrer les catégories par structure sélectionnée
+  // Filtrer les catégories par structure sélectionnée (maintenant par ministère)
   const getFilteredCategories = () => {
-    if (selectedStructureFilter === 'ALL') {
-      return categories;
-    }
-    return categories.filter(c => c.structureId === selectedStructureFilter);
+    return categories;
   };
+
+  // Fonction pour paginer les catégories filtrées
+  const getPaginatedCategories = () => {
+    const filtered = getFilteredCategories();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  // Calculer le nombre total de pages
+  const totalPages = Math.ceil(getFilteredCategories().length / itemsPerPage);
+
+  // Réinitialiser la page à 1 quand les données changent
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [categories.length]);
 
 
   const openCreateCategoryModal = () => {
@@ -129,7 +118,6 @@ const CategoryPage = () => {
   const closeModal = () => {
     setName('');
     setDescription('');
-    setSelectedStructureId('');
     setEditMode(false);
     setEditingCategoryId(null);
     (document.getElementById('category_modal') as HTMLDialogElement)?.close()
@@ -138,18 +126,24 @@ const CategoryPage = () => {
   const openEditCategoryModal = (category: CategoryWithDetails) => {
     setName(category.name);
     setDescription(category.description || '');
-    setSelectedStructureId(category.structureId);
     setEditMode(true);
     setEditingCategoryId(category.id);
     (document.getElementById('category_modal') as HTMLDialogElement)?.showModal()
   }
 
   const handleCreateCategory = async () => {
-    if (!selectedStructureId || !name.trim() || !(user as any)?.id) return;
+    if (!name.trim() || !(user as any)?.id) return;
+
+    // Récupérer le ministereId de l'utilisateur
+    const ministereId = (user as any)?.ministereId;
+    if (!ministereId) {
+      toast.error('Impossible de déterminer votre ministère');
+      return;
+    }
 
     setLoading(true);
     try {
-      await createCategory(name, selectedStructureId, (user as any).id, description);
+      await createCategory(name, ministereId, (user as any).id, description);
       toast.success('Catégorie créée avec succès');
       // Recharger toutes les catégories
       const data = await getAllCategoriesWithDetails((user as any).id);
@@ -163,11 +157,18 @@ const CategoryPage = () => {
   }
 
   const handleUpdateCategory = async () => {
-    if (!editingCategoryId || !selectedStructureId || !name.trim() || !(user as any)?.id) return;
+    if (!editingCategoryId || !name.trim() || !(user as any)?.id) return;
+
+    // Récupérer le ministereId de la catégorie en cours d'édition
+    const categoryToEdit = categories.find(c => c.id === editingCategoryId);
+    if (!categoryToEdit) {
+      toast.error('Catégorie introuvable');
+      return;
+    }
 
     setLoading(true);
     try {
-      await updateCategory(editingCategoryId, name, selectedStructureId, (user as any).id, description);
+      await updateCategory(editingCategoryId, name, categoryToEdit.ministereId, (user as any).id, description);
       toast.success('Catégorie mise à jour avec succès');
       // Recharger toutes les catégories
       const data = await getAllCategoriesWithDetails((user as any).id);
@@ -180,7 +181,7 @@ const CategoryPage = () => {
     setLoading(false);
   }
 
-  const handleDeleteCategory = async (categoryId: string, structureId: string) => {
+  const handleDeleteCategory = async (categoryId: string, ministereId: string) => {
     if (!(user as any)?.id) return;
 
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
@@ -188,7 +189,7 @@ const CategoryPage = () => {
     }
 
     try {
-      await deleteCategory(categoryId, structureId, (user as any).id);
+      await deleteCategory(categoryId, ministereId, (user as any).id);
       toast.success('Catégorie supprimée avec succès');
       // Recharger toutes les catégories
       const data = await getAllCategoriesWithDetails((user as any).id);
@@ -253,34 +254,6 @@ const CategoryPage = () => {
           )}
         </div>
 
-        {/* Filtre par structure - Uniquement pour scope ministere ou all */}
-        {(userPermissions?.scope === "ministere" || userPermissions?.scope === "all") && structures.length > 0 && (
-          <div className="mb-4">
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="font-semibold text-sm">Filtrer par structure :</span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className={`btn btn-sm ${selectedStructureFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => setSelectedStructureFilter('ALL')}
-                >
-                  📋 Toutes ({categories.length})
-                </button>
-                {structures.map((structure) => (
-                  <button
-                    key={structure.id}
-                    className={`btn btn-sm ${selectedStructureFilter === structure.id ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setSelectedStructureFilter(structure.id)}
-                    title={`${structure.ministereName} - ${structure.name}`}
-                  >
-                    🏢 {structure.ministereAbrev ? `${structure.ministereAbrev} - ` : ''}{structure.name}
-                    {' '}({categories.filter(c => c.structureId === structure.id).length})
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Message d'information sur les permissions */}
         {userPermissions && (
           <div className={`alert ${userPermissions.canCreate ? 'alert-info' : 'alert-warning'}`}>
@@ -312,12 +285,11 @@ const CategoryPage = () => {
                     <th className="text-sm font-semibold">Nom</th>
                     <th className="text-sm font-semibold">Description</th>
                     <th className="text-sm font-semibold">Ministère</th>
-                    <th className="text-sm font-semibold">Structure</th>
                     <th className="text-sm font-semibold text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {getFilteredCategories().map((category) => (
+                  {getPaginatedCategories().map((category) => (
                     <tr key={category.id} className="hover:bg-base-200 transition-colors border-b border-base-300">
                       <td className="font-bold text-primary">{category.name}</td>
                       <td className="text-base-content/80 max-w-xs">
@@ -327,20 +299,13 @@ const CategoryPage = () => {
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="badge badge-info badge-sm">{category.structure.ministere.abreviation}</div>
-                          <span className="text-sm truncate max-w-[150px]" title={category.structure.ministere.name}>
-                            {category.structure.ministere.name}
+                          <div className="badge badge-info badge-sm">{category.ministere.abreviation}</div>
+                          <span className="text-sm truncate max-w-[150px]" title={category.ministere.name}>
+                            {category.ministere.name}
                           </span>
                         </div>
                       </td>
-                      <td>
-                        <div className="tooltip tooltip-left" data-tip={category.structure.name}>
-                          <div className="badge badge-success badge-sm max-w-[250px] text-xs h-auto py-1 whitespace-normal">
-                            {category.structure.name}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
+                      <td className="text-center">
                         <div className="flex gap-2 justify-center">
                           {userPermissions?.canCreate ? (
                             <>
@@ -356,7 +321,7 @@ const CategoryPage = () => {
                               </button>
                               <button
                                 className="btn btn-sm btn-error btn-circle tooltip"
-                                onClick={() => handleDeleteCategory(category.id, category.structureId)}
+                                onClick={() => handleDeleteCategory(category.id, category.ministereId)}
                                 data-tip="Supprimer"
                                 aria-label="Supprimer la catégorie"
                               >
@@ -378,7 +343,7 @@ const CategoryPage = () => {
 
             {/* Version mobile/tablette - Cards */}
             <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {getFilteredCategories().map((category) => (
+              {getPaginatedCategories().map((category) => (
                 <div key={category.id} className="card bg-base-100 border border-base-300 shadow-md hover:shadow-lg transition-all">
                   <div className="card-body p-4">
                     <div className="flex justify-between items-start gap-2 mb-3">
@@ -396,7 +361,7 @@ const CategoryPage = () => {
                           </button>
                           <button
                             className="btn btn-xs btn-error btn-circle"
-                            onClick={() => handleDeleteCategory(category.id, category.structureId)}
+                            onClick={() => handleDeleteCategory(category.id, category.ministereId)}
                             aria-label="Supprimer"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -414,13 +379,7 @@ const CategoryPage = () => {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm">
                         <span className="font-semibold text-base-content/60">Ministère:</span>
-                        <div className="badge badge-info badge-sm">{category.structure.ministere.abreviation}</div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-semibold text-base-content/60">Structure:</span>
-                        <div className="badge badge-success badge-sm max-w-[180px] text-xs h-auto py-1 whitespace-normal" title={category.structure.name}>
-                          {category.structure.name}
-                        </div>
+                        <div className="badge badge-info badge-sm">{category.ministere.abreviation}</div>
                       </div>
                     </div>
 
@@ -433,6 +392,40 @@ const CategoryPage = () => {
                 </div>
               ))}
             </div>
+
+            {/* Pagination */}
+            {getFilteredCategories().length > 0 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-base-300 pt-4">
+                <div className="text-sm text-base-content/70">
+                  Affichage de {((currentPage - 1) * itemsPerPage) + 1} à{' '}
+                  {Math.min(currentPage * itemsPerPage, getFilteredCategories().length)} sur{' '}
+                  {getFilteredCategories().length} catégories
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="select select-bordered select-sm"
+                    value={itemsPerPage}
+                    title="Éléments par page"
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                  </select>
+                  <div className="join">
+                    <button className="join-item btn btn-sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>«</button>
+                    <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>‹</button>
+                    <button className="join-item btn btn-sm btn-active">Page {currentPage} / {totalPages}</button>
+                    <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}>›</button>
+                    <button className="join-item btn btn-sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>»</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <EmptyState
@@ -449,13 +442,11 @@ const CategoryPage = () => {
       <CategoryModal
         name={name}
         description={description}
-        selectedStructureId={selectedStructureId}
         ministeres={ministeres}
         loading={loading}
         onclose={closeModal}
         onChangeName={setName}
         onChangeDescription={setDescription}
-        onChangeStructure={setSelectedStructureId}
         onSubmit={editMode ? handleUpdateCategory : handleCreateCategory}
         editMode={editMode}
       />

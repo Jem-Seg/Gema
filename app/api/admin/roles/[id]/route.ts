@@ -11,7 +11,7 @@ export async function PUT(
     await requireAdmin();
     
     const { id: roleId } = await params;
-    const { name, description, requiresStructure } = await request.json();
+    const { name, description } = await request.json();
 
     // Vérifier que le rôle existe
     const existingRole = await prisma.role.findUnique({
@@ -61,7 +61,6 @@ export async function PUT(
       data: {
         name: name.trim(),
         description: description.trim(),
-        requiresStructure: requiresStructure === true,
       },
       include: {
         _count: {

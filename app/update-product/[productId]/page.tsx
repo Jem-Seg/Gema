@@ -30,12 +30,9 @@ type CategoryWithDetails = {
   id: string;
   name: string;
   description: string;
-  structureId: string;
-  structure: {
+  ministereId: string;
+  ministere: {
     name: string;
-    ministere: {
-      name: string;
-    };
   };
 }
 
@@ -405,7 +402,7 @@ function UpdateProductPage({ params }: UpdateProductPageProps) {
                       <option value="">Choisir une catégorie...</option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
-                          {category.name} - {category.structure.name}
+                          {category.name} - {category.ministere.name}
                         </option>
                       ))}
                     </select>

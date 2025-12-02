@@ -22,6 +22,23 @@ const nextConfig: NextConfig = {
         protocol: 'http',
         hostname: 'localhost',
         port: '3000',
+        pathname: '/api/files/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '192.168.*.*',
+        pathname: '/api/files/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.entreprise.local',
+        pathname: '/api/files/**',
+      },
+      // Support ancien chemin /uploads pour compatibilité
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
         pathname: '/uploads/**',
       },
       {
@@ -29,7 +46,6 @@ const nextConfig: NextConfig = {
         hostname: '192.168.*.*',
         pathname: '/uploads/**',
       },
-      // Ajouter domaines spécifiques si nécessaire
     ],
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,
@@ -77,6 +93,15 @@ const nextConfig: NextConfig = {
           {
             key: 'Cache-Control',
             value: 'no-store, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/api/files/:filename*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },

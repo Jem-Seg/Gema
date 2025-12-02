@@ -12,8 +12,7 @@ export async function getCurrentUser() {
     where: { id: (session.user as any).id },
     include: {
       role: true,
-      ministere: true,
-      structure: true
+      ministere: true
     }
   })
 

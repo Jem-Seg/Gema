@@ -1,14 +1,16 @@
 import prisma from '@/lib/prisma';
 
-// Types pour les statuts d'octroi - WORKFLOW SIMPLIFIÉ
+// Types pour les statuts d'octroi - WORKFLOW SIMPLIFIÉ (4 RÔLES)
 export type OctroiStatus =
-  | "EN_ATTENTE"           // Création par Agent de saisie
-  | "EN_INSTANCE_ACHATS"   // Responsable achats demande modifications
-  | "VALIDE_ACHATS"        // Validé par Responsable achats → va au Responsable financier
-  | "EN_INSTANCE_FINANCIER" // Responsable financier demande modifications  
-  | "VALIDE_FINANCIER"     // Validé par Responsable financier → va à l'Ordonnateur
-  | "VALIDE_ORDONNATEUR"   // Validation finale + mise à jour stock
-  | "REJETE";              // Rejeté par Ordonnateur
+  | "EN_ATTENTE"              // Création par Agent de saisie
+  | "EN_INSTANCE_ACHATS"      // Responsable achats demande modifications
+  | "VALIDE_ACHATS"           // Validé par Responsable achats → va au Responsable financier
+  | "EN_INSTANCE_FINANCIER"   // Responsable financier demande modifications
+  | "VALIDE_FINANCIER"        // Validé par Responsable financier → En instance de traitement Ordonnateur
+  | "EN_INSTANCE_ORDONNATEUR" // VALIDE_FINANCIER renommé : En attente traitement Ordonnateur
+  | "MIS_EN_INSTANCE"         // Ordonnateur renvoie pour corrections → Responsable achats
+  | "VALIDE_ORDONNATEUR"      // Validation finale + mise à jour stock
+  | "REJETE";                 // Rejeté par Ordonnateur
 
 // Interface pour la création d'un octroi
 export interface CreateOctroiData {
@@ -173,9 +175,17 @@ export async function instanceOctroi(
       case "Responsable financier":
         // Responsable financier peut mettre en instance seulement si VALIDE_ACHATS
         if (octroi.statut !== "VALIDE_ACHATS") {
-          return { success: false, message: "Vous ne pouvez mettre en instance que les octrois validés par le Responsable achats" };
+          return { success: false, message: "Vous ne pouvez mettre en instance que les octrois validés par le Responsable Achats" };
         }
-        nouveauStatut = "EN_INSTANCE_FINANCIER"; // Retourne à l'Agent de saisie pour modifications
+        nouveauStatut = "EN_INSTANCE_ACHATS"; // Retourne au Responsable Achats pour modifications
+        break;
+        
+      case "Ordonnateur":
+        // Ordonnateur peut mettre en instance seulement si EN_INSTANCE_ORDONNATEUR
+        if (octroi.statut !== "EN_INSTANCE_ORDONNATEUR") {
+          return { success: false, message: "Vous ne pouvez mettre en instance que les octrois en instance ordonnateur" };
+        }
+        nouveauStatut = "MIS_EN_INSTANCE"; // Retourne au Responsable achats pour corrections
         break;
         
       default:
@@ -208,7 +218,11 @@ export async function instanceOctroi(
     return {
       success: true,
       data: updatedOctroi,
-      message: `Octroi renvoyé à l'Agent de saisie pour modifications`
+      message: userRole === "Ordonnateur"
+        ? `Octroi renvoyé au Responsable Achats pour modifications`
+        : userRole === "Responsable Financier" || userRole === "Responsable financier"
+        ? `Octroi renvoyé au Responsable Achats pour modifications`
+        : `Octroi renvoyé à l'Agent de saisie pour modifications`
     };
   } catch (error) {
     console.error('Erreur lors de la mise en instance:', error);
@@ -244,26 +258,29 @@ export async function validateOctroi(
     switch (userRole) {
       case "Responsable Achats":
       case "Responsable achats":
-        // Peut valider si EN_ATTENTE ou EN_INSTANCE_ACHATS
-        if (octroi.statut !== "EN_ATTENTE" && octroi.statut !== "EN_INSTANCE_ACHATS") {
-          return { success: false, message: "Vous ne pouvez valider que les octrois en attente ou en instance achats" };
+        // Peut valider si EN_ATTENTE, EN_INSTANCE_ACHATS, ou MIS_EN_INSTANCE (corrections Ordonnateur)
+        // Ne peut PAS valider VALIDE_ACHATS (déjà validé précédemment)
+        if (octroi.statut !== "EN_ATTENTE" && 
+            octroi.statut !== "EN_INSTANCE_ACHATS" && 
+            octroi.statut !== "MIS_EN_INSTANCE") {
+          return { success: false, message: "Vous ne pouvez valider que les octrois en attente, en instance achats, ou mis en instance par l'ordonnateur" };
         }
-        nouveauStatut = "VALIDE_ACHATS"; // Passe au Responsable financier
+        nouveauStatut = "VALIDE_ACHATS"; // Validé par Resp. Achats → En attente validation Resp. Financier
         break;
         
       case "Responsable Financier":
       case "Responsable financier":
-        // Peut valider si VALIDE_ACHATS ou EN_INSTANCE_FINANCIER
-        if (octroi.statut !== "VALIDE_ACHATS" && octroi.statut !== "EN_INSTANCE_FINANCIER") {
-          return { success: false, message: "Vous ne pouvez valider que les octrois validés par le Responsable achats ou en instance financier" };
+        // Peut valider si VALIDE_ACHATS
+        if (octroi.statut !== "VALIDE_ACHATS") {
+          return { success: false, message: "Vous ne pouvez valider que les octrois validés par le Responsable Achats" };
         }
-        nouveauStatut = "VALIDE_FINANCIER"; // Passe à l'Ordonnateur
+        nouveauStatut = "EN_INSTANCE_ORDONNATEUR"; // En instance de traitement Ordonnateur
         break;
         
       case "Ordonnateur":
-        // Peut valider si VALIDE_FINANCIER
-        if (octroi.statut !== "VALIDE_FINANCIER") {
-          return { success: false, message: "Vous ne pouvez valider que les octrois validés par le Responsable financier" };
+        // Peut valider si EN_INSTANCE_ORDONNATEUR
+        if (octroi.statut !== "EN_INSTANCE_ORDONNATEUR") {
+          return { success: false, message: "Vous ne pouvez valider que les octrois en instance ordonnateur" };
         }
         
         // Vérifier le stock avant validation finale
@@ -387,9 +404,9 @@ export async function rejectOctroi(
       return { success: false, message: "Seul l'ordonnateur peut rejeter un octroi" };
     }
 
-    // L'ordonnateur peut rejeter seulement si VALIDE_FINANCIER
-    if (octroi.statut !== "VALIDE_FINANCIER") {
-      return { success: false, message: "Vous ne pouvez rejeter que les octrois validés par le Responsable financier" };
+    // L'ordonnateur peut rejeter seulement si EN_INSTANCE_ORDONNATEUR
+    if (octroi.statut !== "EN_INSTANCE_ORDONNATEUR") {
+      return { success: false, message: "Vous ne pouvez rejeter que les octrois en instance ordonnateur" };
     }
 
     // Mettre à jour l'octroi avec statut REJETÉ
@@ -431,30 +448,35 @@ export async function getOctrois(userId: string, userRole: string, structureId?:
   try {
     const whereClause: { structureId?: string; ministereId?: string } = {};
 
-    // Filtrer selon le rôle
-    switch (userRole) {
-      case "Agent de saisie":
-        // Agent de saisie voit tous les octrois de son ministère (peut intervenir sur toutes les structures)
-        if (!ministereId) {
-          return { success: false, message: "Ministère non défini" };
-        }
-        whereClause.ministereId = ministereId;
-        break;
-      case "Responsable Achats":
-      case "Responsable achats":
-      case "Responsable Financier":
-      case "Responsable financier":
-      case "Ordonnateur":
-        if (!ministereId) {
-          return { success: false, message: "Ministère non défini" };
-        }
-        whereClause.ministereId = ministereId;
-        break;
-      case "Admin":
-        // Admin peut voir tous les octrois
-        break;
-      default:
-        return { success: false, message: "Rôle non reconnu" };
+    // Si structureId est fourni, filtrer par structure spécifique
+    if (structureId) {
+      whereClause.structureId = structureId;
+    } else {
+      // Sinon, filtrer selon le rôle
+      switch (userRole) {
+        case "Agent de saisie":
+          // Agent de saisie voit tous les octrois de son ministère (peut intervenir sur toutes les structures)
+          if (!ministereId) {
+            return { success: false, message: "Ministère non défini" };
+          }
+          whereClause.ministereId = ministereId;
+          break;
+        case "Responsable Achats":
+        case "Responsable achats":
+        case "Responsable Financier":
+        case "Responsable financier":
+        case "Ordonnateur":
+          if (!ministereId) {
+            return { success: false, message: "Ministère non défini" };
+          }
+          whereClause.ministereId = ministereId;
+          break;
+        case "Admin":
+          // Admin peut voir tous les octrois
+          break;
+        default:
+          return { success: false, message: "Rôle non reconnu" };
+      }
     }
 
     const octrois = await prisma.octroi.findMany({

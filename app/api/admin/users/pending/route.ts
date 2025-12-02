@@ -14,8 +14,7 @@ export async function GET() {
       },
       include: {
         role: true,
-        ministere: true,
-        structure: true
+        ministere: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -61,7 +60,6 @@ export async function POST(req: Request) {
       targetUserId, 
       roleId, 
       ministereId, 
-      structureId, 
       action 
     } = await req.json()
 
@@ -71,8 +69,7 @@ export async function POST(req: Request) {
         data: {
           isApproved: true,
           roleId: roleId || null,
-          ministereId: ministereId || null,
-          structureId: structureId || null
+          ministereId: ministereId || null
         }
       })
 

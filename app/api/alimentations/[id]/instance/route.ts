@@ -31,8 +31,8 @@ export async function POST(
     const { user } = userInfo;
     const { id: alimentationId } = await params;
 
-    // Vérifier que l'utilisateur a un rôle autorisé
-    const authorizedRoles = ['Directeur Financier', 'Directeur financier', 'Directeur', 'Ordonnateur'];
+    // Vérifier que l'utilisateur a un rôle autorisé (workflow simplifié)
+    const authorizedRoles = ['Responsable Achats', 'Responsable Financier', 'Responsable financier', 'Ordonnateur'];
     if (!user.role?.name || !authorizedRoles.includes(user.role.name)) {
       return NextResponse.json(
         { error: 'Rôle non autorisé pour cette action' },

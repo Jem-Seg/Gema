@@ -69,7 +69,6 @@ const OctroisPage = () => {
   const [actionType, setActionType] = useState<'instance' | 'validate' | 'reject'>('validate');
   const [observations, setObservations] = useState('');
   const [userRole, setUserRole] = useState<string>('');
-  const [userStructureId, setUserStructureId] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedOctroiHistory, setSelectedOctroiHistory] = useState<Octroi | null>(null);
@@ -86,10 +85,16 @@ const OctroisPage = () => {
 
   // État pour le filtrage par statut
   const [statusFilter, setStatusFilter] = useState<string>('TOUS');
+  
+  // État pour le filtrage par date
+  const [dateFilter, setDateFilter] = useState<string>('TOUS');
+
+  // États pour la pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Données du formulaire de création
   const [formData, setFormData] = useState({
-    structureId: '',
     produitId: '',
     quantite: 1,
     beneficiaireDenomination: '',
@@ -112,9 +117,7 @@ const OctroisPage = () => {
         const result = await response.json();
         const userData = result.user || result;
         const roleName = userData.isAdmin ? 'Admin' : (userData.role?.name || '');
-        const structureId = userData.structureId;
         setUserRole(roleName);
-        setUserStructureId(structureId || null);
       } catch (error) {
         console.error('Erreur lors du chargement du rôle:', error);
       }
@@ -127,7 +130,7 @@ const OctroisPage = () => {
 
   // Vérifier si l'utilisateur peut créer/modifier/supprimer des octrois
   const canManageOctrois = () => {
-    const authorizedRoles = ['Responsable Achats', 'Responsable achats', 'Agent de saisie', 'Admin'];
+    const authorizedRoles = ['Responsable Achats', 'Responsable achats', 'Agent de saisie'];
     return authorizedRoles.includes(userRole);
   };
 
@@ -135,20 +138,29 @@ const OctroisPage = () => {
   const canEditOrDeleteOctroi = (octroi: Octroi) => {
     if (!canManageOctrois()) return false;
 
-    // L'octroi doit être en statut SAISIE, INSTANCE_DIRECTEUR, INSTANCE_ORDONNATEUR ou REJETE et non verrouillé (sauf REJETE qui est verrouillé)
-    const editableStatuses = ['SAISIE', 'INSTANCE_DIRECTEUR', 'INSTANCE_ORDONNATEUR', 'REJETE'];
-    if (!editableStatuses.includes(octroi.statut)) return false;
-
-    // Pour REJETE, on permet la suppression même si verrouillé
-    if (octroi.statut !== 'REJETE' && octroi.isLocked) return false;
-
-    // Agent de saisie: seulement sa structure
-    if (userRole === 'Agent de saisie') {
-      return userStructureId === octroi.produit.structureId;
+    // L'octroi doit être en statut éditable et non verrouillé
+    const isAdmin = userRole === 'Admin';
+    const isAgentDeSaisie = userRole === 'Agent de saisie';
+    const isResponsableAchats = userRole === 'Responsable Achats' || userRole === 'Responsable achats';
+    
+    // Admin peut modifier/supprimer (sauf si verrouillé)
+    if (isAdmin && !octroi.isLocked) {
+      return true;
     }
-
-    // Responsable achats: toutes les structures de son ministère
-    return true;
+    
+    // Agent de saisie peut modifier/supprimer EN_ATTENTE, EN_INSTANCE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE, REJETE
+    if (isAgentDeSaisie) {
+      const agentEditableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE'];
+      return agentEditableStatuses.includes(octroi.statut) && !octroi.isLocked;
+    }
+    
+    // Responsable achats peut modifier/supprimer EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE, REJETE
+    if (isResponsableAchats) {
+      const respAchatsEditableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE'];
+      return respAchatsEditableStatuses.includes(octroi.statut) && !octroi.isLocked;
+    }
+    
+    return false;
   };
 
   // Déterminer les actions disponibles pour un octroi selon le rôle et le statut
@@ -160,54 +172,51 @@ const OctroisPage = () => {
 
     const actions: ('instance' | 'validate' | 'reject')[] = [];
     
-    // Normaliser le rôle pour comparaison (minuscules, sans accents)
+    // Normaliser le rôle pour comparaison
     const normalizedRole = userRole.toLowerCase().trim();
 
-    // Admin
+    // Admin peut tout faire
     if (userRole === 'Admin') {
-      if (octroi.statut === 'SAISIE') {
-        actions.push('instance', 'validate', 'reject');
-      }
-      else if (octroi.statut === 'INSTANCE_DIRECTEUR') {
-        actions.push('validate', 'reject');
-      }
-      else if (octroi.statut === 'VALIDE_DIRECTEUR') {
-        actions.push('validate', 'reject');
-      }
-      else if (octroi.statut === 'VALIDE_FINANCIER') {
-        actions.push('instance', 'validate', 'reject');
-      }
-      else if (octroi.statut === 'INSTANCE_ORDONNATEUR') {
-        actions.push('validate', 'reject');
+      switch (octroi.statut) {
+        case 'EN_ATTENTE':
+          return ['instance', 'validate'];
+        case 'EN_INSTANCE_ACHATS':
+          return ['validate'];
+        case 'VALIDE_ACHATS':
+          return ['instance', 'validate'];
+        case 'EN_INSTANCE_ORDONNATEUR':
+          return ['validate'];
+        case 'VALIDE_FINANCIER':
+          return ['instance', 'validate', 'reject'];
+        default:
+          return [];
       }
     }
-    // Directeur (toutes variantes)
-    else if (normalizedRole.includes('directeur') && !normalizedRole.includes('financier')) {
-      // Directeur peut valider ou mettre en instance depuis SAISIE (PAS de rejet)
-      if (octroi.statut === 'SAISIE') {
+
+    // Responsable Achats
+    if (userRole === 'Responsable Achats' || userRole === 'Responsable achats') {
+      if (octroi.statut === 'EN_ATTENTE') {
+        actions.push('instance', 'validate');
+      } else if (octroi.statut === 'EN_INSTANCE_ACHATS') {
+        actions.push('validate');
+      } else if (octroi.statut === 'MIS_EN_INSTANCE') {
+        actions.push('validate');
+      }
+      // REJETE : Peut seulement modifier, pas de bouton valider
+      // VALIDE_ACHATS : Peut seulement modifier, pas d'action validate
+    }
+
+    // Responsable Financier
+    if (userRole === 'Responsable financier' || userRole === 'Responsable Financier') {
+      if (octroi.statut === 'VALIDE_ACHATS') {
         actions.push('instance', 'validate');
       }
-      // Directeur peut valider depuis INSTANCE_DIRECTEUR (PAS de rejet)
-      else if (octroi.statut === 'INSTANCE_DIRECTEUR') {
-        actions.push('validate');
-      }
     }
-    // Directeur Financier ou Responsable Financier (toutes variantes)
-    else if (normalizedRole.includes('financier')) {
-      // Dir. Financier et Responsable financier peuvent UNIQUEMENT valider depuis VALIDE_DIRECTEUR
-      if (octroi.statut === 'VALIDE_DIRECTEUR') {
-        actions.push('validate');
-      }
-    }
+
     // Ordonnateur
-    else if (normalizedRole === 'ordonnateur') {
-      // Ordonnateur peut valider, mettre en instance ou rejeter depuis VALIDE_FINANCIER
-      if (octroi.statut === 'VALIDE_FINANCIER') {
+    if (userRole === 'Ordonnateur') {
+      if (octroi.statut === 'EN_INSTANCE_ORDONNATEUR') {
         actions.push('instance', 'validate', 'reject');
-      }
-      // Ordonnateur peut valider ou rejeter depuis INSTANCE_ORDONNATEUR
-      else if (octroi.statut === 'INSTANCE_ORDONNATEUR') {
-        actions.push('validate', 'reject');
       }
     }
 
@@ -220,23 +229,23 @@ const OctroisPage = () => {
     
     if (userRole === 'Admin') {
       // Admin peut voir tous les statuts
-      return ['TOUS', 'SAISIE', 'VALIDE_DIRECTEUR', 'VALIDE_FINANCIER', 'VALIDE_ORDONNATEUR', 'REJETE'];
+      return ['TOUS', 'EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'VALIDE_ORDONNATEUR', 'REJETE'];
     }
-    else if (normalizedRole.includes('directeur') && !normalizedRole.includes('financier')) {
-      // Directeur voit : SAISIE (= Instance Directeur, à traiter) et VALIDE_DIRECTEUR (traités)
-      return ['TOUS', 'SAISIE', 'VALIDE_DIRECTEUR'];
+    else if (normalizedRole === 'agent de saisie') {
+      // Agent de saisie voit : EN_ATTENTE, EN_INSTANCE_ACHATS, EN_INSTANCE_FINANCIER, EN_INSTANCE_ORDONNATEUR, MIS_EN_INSTANCE, VALIDE_ORDONNATEUR, REJETE
+      return ['TOUS', 'EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'VALIDE_ORDONNATEUR', 'REJETE'];
     }
-    else if (normalizedRole.includes('financier')) {
-      // Directeur financier voit : VALIDE_DIRECTEUR (= Instance Financier, à traiter) et VALIDE_FINANCIER (traités)
-      return ['TOUS', 'VALIDE_DIRECTEUR', 'VALIDE_FINANCIER'];
+    else if (normalizedRole === 'responsable achats') {
+      // Responsable achats voit : EN_INSTANCE_ACHATS (à valider ou renvoyés Agent), EN_INSTANCE_ORDONNATEUR (en traitement Ordonnateur - pour info), MIS_EN_INSTANCE (renvoyés Ordonnateur - à traiter), VALIDE_ORDONNATEUR, REJETE
+      return ['TOUS', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'VALIDE_ORDONNATEUR', 'REJETE'];
+    }
+    else if (normalizedRole === 'responsable financier') {
+      // Responsable financier voit : VALIDE_ACHATS (à valider), EN_INSTANCE_FINANCIER (renvoyés par lui-même), EN_INSTANCE_ORDONNATEUR (en traitement par Ordonnateur - pour info), MIS_EN_INSTANCE (renvoyés par Ordonnateur - pour info), VALIDE_ORDONNATEUR, REJETE
+      return ['TOUS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'VALIDE_ORDONNATEUR', 'REJETE'];
     }
     else if (normalizedRole === 'ordonnateur') {
-      // Ordonnateur voit : VALIDE_FINANCIER (= Instance Ordonnateur, à traiter) et VALIDE_ORDONNATEUR (traités)
-      return ['TOUS', 'VALIDE_FINANCIER', 'VALIDE_ORDONNATEUR'];
-    }
-    else if (normalizedRole === 'agent de saisie' || normalizedRole.includes('responsable')) {
-      // Agent et Responsable voient : leurs saisies
-      return ['TOUS', 'SAISIE', 'REJETE'];
+      // Ordonnateur voit : EN_INSTANCE_ORDONNATEUR (à valider/rejeter/mettre en instance), MIS_EN_INSTANCE (renvoyés par lui), VALIDE_ORDONNATEUR, REJETE
+      return ['TOUS', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'VALIDE_ORDONNATEUR', 'REJETE'];
     }
     
     return ['TOUS'];
@@ -246,16 +255,83 @@ const OctroisPage = () => {
   const getFilteredOctrois = () => {
     let filtered = octrois;
     
+    // Filtrage par rôle - Chaque rôle ne voit que ses octrois pertinents
+    if (userRole === 'Responsable Achats' || userRole === 'Responsable achats') {
+      // Responsable Achats voit : EN_ATTENTE (nouveaux), EN_INSTANCE_ACHATS (corrections), VALIDE_ACHATS (modification seulement), EN_INSTANCE_ORDONNATEUR (en traitement Ordonnateur), MIS_EN_INSTANCE (corrections Ordonnateur), REJETE (à modifier/renvoyer), VALIDE_ORDONNATEUR (validées)
+      filtered = filtered.filter(o => 
+        o.statut === 'EN_ATTENTE' || o.statut === 'EN_INSTANCE_ACHATS' || o.statut === 'VALIDE_ACHATS' || o.statut === 'EN_INSTANCE_ORDONNATEUR' || o.statut === 'MIS_EN_INSTANCE' || o.statut === 'REJETE' || o.statut === 'VALIDE_ORDONNATEUR'
+      );
+    } else if (userRole === 'Responsable Financier' || userRole === 'Responsable financier') {
+      // Responsable Financier voit : VALIDE_ACHATS, EN_INSTANCE_FINANCIER, EN_INSTANCE_ORDONNATEUR, MIS_EN_INSTANCE, VALIDE_ORDONNATEUR, REJETE
+      filtered = filtered.filter(o => o.statut === 'VALIDE_ACHATS' || o.statut === 'EN_INSTANCE_FINANCIER' || o.statut === 'EN_INSTANCE_ORDONNATEUR' || o.statut === 'MIS_EN_INSTANCE' || o.statut === 'VALIDE_ORDONNATEUR' || o.statut === 'REJETE');
+    } else if (userRole === 'Ordonnateur') {
+      // Ordonnateur voit : EN_INSTANCE_ORDONNATEUR, MIS_EN_INSTANCE, VALIDE_ORDONNATEUR, REJETE
+      filtered = filtered.filter(o => o.statut === 'EN_INSTANCE_ORDONNATEUR' || o.statut === 'MIS_EN_INSTANCE' || o.statut === 'VALIDE_ORDONNATEUR' || o.statut === 'REJETE');
+    } else if (userRole === 'Agent de saisie' || userRole === 'Agent Saisie') {
+      // Agent de saisie voit : EN_ATTENTE (ses créations), EN_INSTANCE_ACHATS (corrections demandées par Resp. Achats), EN_INSTANCE_ORDONNATEUR (pour info uniquement), MIS_EN_INSTANCE (pour info), REJETE (rejetées par Ordonnateur), VALIDE_ORDONNATEUR (validées)
+      filtered = filtered.filter(o => 
+        o.statut === 'EN_ATTENTE' || o.statut === 'EN_INSTANCE_ACHATS' || o.statut === 'EN_INSTANCE_ORDONNATEUR' || o.statut === 'MIS_EN_INSTANCE' || o.statut === 'REJETE' || o.statut === 'VALIDE_ORDONNATEUR'
+      );
+    }
+    // Admin voit tout - pas de filtre
+    
+    // Filtrage par date
+    if (dateFilter !== 'TOUS') {
+      filtered = filtered.filter(o => {
+        const octroiDate = new Date(o.createdAt);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        switch (dateFilter) {
+          case 'AUJOURD_HUI':
+            const todayEnd = new Date(today);
+            todayEnd.setHours(23, 59, 59, 999);
+            return octroiDate >= today && octroiDate <= todayEnd;
+            
+          case 'CETTE_SEMAINE':
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            weekEnd.setHours(23, 59, 59, 999);
+            return octroiDate >= weekStart && octroiDate <= weekEnd;
+            
+          case 'CE_MOIS':
+            return octroiDate.getMonth() === today.getMonth() && 
+                   octroiDate.getFullYear() === today.getFullYear();
+            
+          case 'CETTE_ANNEE':
+            return octroiDate.getFullYear() === today.getFullYear();
+            
+          default:
+            return true;
+        }
+      });
+    }
+    
     // Si un statut spécifique est sélectionné (pas TOUS), filtrer par ce statut
     if (statusFilter !== 'TOUS') {
       filtered = filtered.filter(o => o.statut === statusFilter);
-      return filtered;
     }
     
-    // Si statusFilter === 'TOUS', afficher tous les octrois sans filtrage supplémentaire
-    // (l'utilisateur verra tous les octrois, y compris ceux déjà traités)
     return filtered;
   };
+
+  // Fonction pour paginer les octrois filtrés
+  const getPaginatedOctrois = () => {
+    const filtered = getFilteredOctrois();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  // Calculer le nombre total de pages
+  const totalPages = Math.ceil(getFilteredOctrois().length / itemsPerPage);
+
+  // Réinitialiser la page à 1 quand les filtres changent
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, dateFilter]);
 
   // Charger les octrois
   const loadOctrois = useCallback(async () => {
@@ -323,21 +399,20 @@ const OctroisPage = () => {
   // Charger les produits pour le formulaire de création
   const loadProduits = useCallback(async () => {
     try {
-      // Pour Responsable Achats, charger les produits selon la structure sélectionnée
-      if ((userRole === 'Responsable Achats' || userRole === 'Responsable achats') && formData.structureId) {
-        const produitsData = await readProduct(formData.structureId);
-        setProduits(produitsData || []);
-      }
-      // Pour Agent de saisie, charger les produits de sa structure
-      else if (userRole === 'Agent de saisie' && userStructureId) {
-        const produitsData = await readProduct(userStructureId);
-        setProduits(produitsData || []);
+      // Charger tous les produits du ministère de l'utilisateur
+      const response = await fetch('/api/produits');
+      const result = await response.json();
+      
+      if (result.success) {
+        setProduits(result.data || []);
+      } else {
+        toast.error('Erreur lors du chargement des produits');
       }
     } catch (error) {
       console.error('❌ Erreur lors du chargement des produits:', error);
       toast.error('Erreur lors du chargement des produits');
     }
-  }, [userRole, formData.structureId, userStructureId]);
+  }, []);
 
   useEffect(() => {
     if (status === 'authenticated' && user) {
@@ -352,16 +427,12 @@ const OctroisPage = () => {
     }
   }, [userRole, loadStructures]);
 
-  // Charger les produits quand la structure est sélectionnée ou pour Agent de saisie
+  // Charger les produits quand l'utilisateur est authentifié
   useEffect(() => {
-    const shouldLoadProduits =
-      (userRole === 'Responsable Achats' || userRole === 'Responsable achats') && formData.structureId ||
-      userRole === 'Agent de saisie' && userStructureId;
-
-    if (shouldLoadProduits) {
+    if (status === 'authenticated' && user) {
       loadProduits();
     }
-  }, [userRole, formData.structureId, userStructureId, loadProduits]);
+  }, [status, user, loadProduits]);
 
   // Calculer les quantités en attente pour un produit (en excluant l'octroi en cours d'édition)
   const getQuantiteEnAttente = (produitId: string, excludeOctroiId?: string) => {
@@ -369,7 +440,7 @@ const OctroisPage = () => {
       .filter(o =>
         o.produitId === produitId &&
         o.id !== excludeOctroiId && // Exclure l'octroi en cours d'édition
-        ['SAISIE', 'INSTANCE_DIRECTEUR', 'VALIDE_DIRECTEUR', 'VALIDE_FINANCIER', 'INSTANCE_ORDONNATEUR'].includes(o.statut)
+        ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'VALIDE_FINANCIER'].includes(o.statut)
       )
       .reduce((total, o) => total + o.quantite, 0);
   };
@@ -412,7 +483,6 @@ const OctroisPage = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          structureId: formData.structureId || userStructureId,
           produitId: formData.produitId,
           quantite: formData.quantite,
           beneficiaireNom: formData.beneficiaireDenomination,
@@ -424,21 +494,25 @@ const OctroisPage = () => {
       const result = await response.json();
 
       if (result.success) {
-        // Upload des documents si présents (uniquement pour nouvelle création)
-        if (!isEditing && uploadedFiles.length > 0 && result.data?.id) {
-          for (const file of uploadedFiles) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('octroiId', result.data.id);
-            formData.append('type', 'PV_OCTROI');
+        // Upload des documents si présents (création ou modification)
+        if (uploadedFiles.length > 0) {
+          const octroiId = isEditing ? editingOctroi.id : result.data?.id;
+          
+          if (octroiId) {
+            for (const file of uploadedFiles) {
+              const formData = new FormData();
+              formData.append('file', file);
+              formData.append('octroiId', octroiId);
+              formData.append('type', 'PV_OCTROI');
 
-            try {
-              await fetch('/api/octrois/documents/upload', {
-                method: 'POST',
-                body: formData,
-              });
-            } catch (error) {
-              console.error('Erreur upload document:', error);
+              try {
+                await fetch('/api/octrois/documents/upload', {
+                  method: 'POST',
+                  body: formData,
+                });
+              } catch (error) {
+                console.error('Erreur upload document:', error);
+              }
             }
           }
         }
@@ -447,7 +521,6 @@ const OctroisPage = () => {
         setShowCreateModal(false);
         setEditingOctroi(null);
         setFormData({
-          structureId: '',
           produitId: '',
           quantite: 1,
           beneficiaireDenomination: '',
@@ -523,12 +596,12 @@ const OctroisPage = () => {
   // Obtenir la couleur du badge selon le statut
   const getStatusBadgeColor = (statut: string) => {
     switch (statut) {
-      case 'SAISIE': return 'badge-warning';
-      case 'INSTANCE_FINANCIER': return 'badge-info';
-      case 'VALIDE_FINANCIER': return 'badge-primary';
-      case 'INSTANCE_DIRECTEUR': return 'badge-info';
-      case 'VALIDE_DIRECTEUR': return 'badge-primary';
-      case 'INSTANCE_ORDONNATEUR': return 'badge-info';
+      case 'EN_ATTENTE': return 'badge-warning badge-outline';
+      case 'EN_INSTANCE_ACHATS': return 'badge-warning';
+      case 'VALIDE_ACHATS': return 'badge-success badge-outline';
+      case 'EN_INSTANCE_FINANCIER': return 'badge-warning';
+      case 'EN_INSTANCE_ORDONNATEUR': return 'badge-info';
+      case 'MIS_EN_INSTANCE': return 'badge-error badge-outline';
       case 'VALIDE_ORDONNATEUR': return 'badge-success';
       case 'REJETE': return 'badge-error';
       default: return 'badge-ghost';
@@ -538,13 +611,13 @@ const OctroisPage = () => {
   // Obtenir le libellé du statut
   const getStatusLabel = (statut: string) => {
     const labels: Record<string, string> = {
-      'SAISIE': '📝 En saisie',
-      'INSTANCE_FINANCIER': '⏳ Instance Financier',
-      'VALIDE_FINANCIER': '✅ Validé Financier',
-      'INSTANCE_DIRECTEUR': '⏳ Instance Directeur',
-      'VALIDE_DIRECTEUR': '✅ Validé Directeur',
-      'INSTANCE_ORDONNATEUR': '⏳ Instance Ordonnateur',
-      'VALIDE_ORDONNATEUR': '🎉 Validé Final',
+      'EN_ATTENTE': '⏳ En attente',
+      'EN_INSTANCE_ACHATS': '📝 Correction Achats',
+      'VALIDE_ACHATS': '✅ Validé Achats',
+      'EN_INSTANCE_FINANCIER': '📝 Correction Financier',
+      'EN_INSTANCE_ORDONNATEUR': '📄 À traiter',
+      'MIS_EN_INSTANCE': '🔙 À corriger',
+      'VALIDE_ORDONNATEUR': '✅✅ Validé',
       'REJETE': '❌ Rejeté'
     };
     return labels[statut] || statut;
@@ -718,7 +791,6 @@ const OctroisPage = () => {
                 onClick={() => {
                   setEditingOctroi(null);
                   setFormData({
-                    structureId: '',
                     produitId: '',
                     quantite: 1,
                     beneficiaireDenomination: '',
@@ -735,8 +807,29 @@ const OctroisPage = () => {
           </div>
         </div>
 
-        {/* Filtre par statut */}
-        <div className="mb-4">
+        {/* Filtres par date et statut */}
+        <div className="mb-4 space-y-4">
+          {/* Filtre par date */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="font-semibold text-sm">Filtrer par date :</span>
+            <div className="flex flex-wrap gap-2">
+              {['TOUS', 'AUJOURD_HUI', 'CETTE_SEMAINE', 'CE_MOIS', 'CETTE_ANNEE'].map((date) => (
+                <button
+                  key={date}
+                  className={`btn btn-sm ${dateFilter === date ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter(date)}
+                >
+                  {date === 'TOUS' && '📅 Toutes les dates'}
+                  {date === 'AUJOURD_HUI' && '🔹 Aujourd\'hui'}
+                  {date === 'CETTE_SEMAINE' && '📆 Cette semaine'}
+                  {date === 'CE_MOIS' && '📅 Ce mois'}
+                  {date === 'CETTE_ANNEE' && '🗓️ Cette année'}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Filtre par statut */}
           <div className="flex flex-wrap gap-2 items-center">
             <span className="font-semibold text-sm">Filtrer par statut :</span>
             <div className="flex flex-wrap gap-2">
@@ -746,19 +839,32 @@ const OctroisPage = () => {
                   className={`btn btn-sm ${statusFilter === status ? 'btn-primary' : 'btn-outline'}`}
                   onClick={() => setStatusFilter(status)}
                 >
-                  {status === 'TOUS' && '📋 Tous'}
-                  {status === 'SAISIE' && '⏳ Instance Directeur'}
-                  {status === 'VALIDE_DIRECTEUR' && '⏳ Instance Financier'}
-                  {status === 'VALIDE_FINANCIER' && '⏳ Instance Ordonnateur'}
-                  {status === 'VALIDE_ORDONNATEUR' && '✅ Validé Final'}
-                  {status === 'REJETE' && '❌ Rejeté'}
+                  {status === 'TOUS' && `📋 Tous (${octrois.length})`}
+                  {status === 'EN_ATTENTE' && `⏳ En attente (${octrois.filter(o => o.statut === 'EN_ATTENTE').length})`}
+                  {status === 'EN_INSTANCE_ACHATS' && `📝 Correction Achats (${octrois.filter(o => o.statut === 'EN_INSTANCE_ACHATS').length})`}
+                  {status === 'VALIDE_ACHATS' && `✅ Validé Achats (${octrois.filter(o => o.statut === 'VALIDE_ACHATS').length})`}
+                  {status === 'EN_INSTANCE_FINANCIER' && `📝 Correction Financier (${octrois.filter(o => o.statut === 'EN_INSTANCE_FINANCIER').length})`}
+                  {status === 'EN_INSTANCE_ORDONNATEUR' && `📄 À traiter (${octrois.filter(o => o.statut === 'EN_INSTANCE_ORDONNATEUR').length})`}
+                  {status === 'MIS_EN_INSTANCE' && `🔙 À corriger (${octrois.filter(o => o.statut === 'MIS_EN_INSTANCE').length})`}
+                  {status === 'VALIDE_ORDONNATEUR' && `✅✅ Validé (${octrois.filter(o => o.statut === 'VALIDE_ORDONNATEUR').length})`}
+                  {status === 'REJETE' && `❌ Rejeté (${octrois.filter(o => o.statut === 'REJETE').length})`}
                 </button>
               ))}
             </div>
           </div>
-          <div className="text-xs text-gray-500 mt-2">
-            {statusFilter === 'TOUS' && `📌 Affichage de tous les octrois (${getFilteredOctrois().length})`}
-            {statusFilter !== 'TOUS' && `📌 Affichage des octrois avec le statut : ${statusFilter} (${getFilteredOctrois().length})`}
+          
+          <div className="text-xs text-info mb-2 flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><strong>Légende :</strong> 📝 Corrections demandées | 📄 En traitement | 🔙 Renvoyé pour modification | ✅ Validé</span>
+          </div>
+          
+          <div className="text-xs text-gray-500">
+            {statusFilter === 'TOUS' && dateFilter === 'TOUS' && `📌 Affichage de tous les octrois (${getFilteredOctrois().length})`}
+            {statusFilter !== 'TOUS' && dateFilter === 'TOUS' && `📌 Filtré par statut : ${getStatusLabel(statusFilter)} (${getFilteredOctrois().length})`}
+            {statusFilter === 'TOUS' && dateFilter !== 'TOUS' && `📌 Filtré par date (${getFilteredOctrois().length})`}
+            {statusFilter !== 'TOUS' && dateFilter !== 'TOUS' && `📌 Filtré par statut et date (${getFilteredOctrois().length})`}
           </div>
         </div>
 
@@ -793,16 +899,14 @@ const OctroisPage = () => {
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
                   />
-                  {/* Bouton Mettre en instance - Pas pour les financiers */}
-                  {!userRole.toLowerCase().includes('financier') && (
-                    <button
-                      className="btn btn-sm btn-info"
-                      onClick={() => executeBulkAction('instance')}
-                      disabled={bulkActionInProgress}
-                    >
-                      {bulkActionInProgress ? <span className="loading loading-spinner loading-xs"></span> : '⏳ Mettre en instance'}
-                    </button>
-                  )}
+                  {/* Bouton Mettre en instance */}
+                  <button
+                    className="btn btn-sm btn-info"
+                    onClick={() => executeBulkAction('instance')}
+                    disabled={bulkActionInProgress}
+                  >
+                    {bulkActionInProgress ? <span className="loading loading-spinner loading-xs"></span> : '⏳ Mettre en instance'}
+                  </button>
                   {/* Bouton Valider - Pour tous */}
                   <button
                     className="btn btn-sm btn-success"
@@ -850,7 +954,7 @@ const OctroisPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {getFilteredOctrois().map((octroi) => (
+                  {getPaginatedOctrois().map((octroi) => (
                     <tr key={octroi.id} className="hover:bg-base-200 transition-colors border-b border-base-300">
                       <td className="py-2">
                         <input
@@ -937,7 +1041,6 @@ const OctroisPage = () => {
                                 onClick={() => {
                                   setEditingOctroi(octroi);
                                   setFormData({
-                                    structureId: octroi.structureId,
                                     produitId: octroi.produitId,
                                     quantite: octroi.quantite,
                                     beneficiaireDenomination: octroi.beneficiaireNom,
@@ -1046,7 +1149,7 @@ const OctroisPage = () => {
 
             {/* Vue Mobile - Cartes */}
             <div className="lg:hidden space-y-4">
-              {getFilteredOctrois().map((octroi) => (
+              {getPaginatedOctrois().map((octroi) => (
                 <div key={octroi.id} className="card bg-base-100 shadow-lg">
                   <div className="card-body p-4">
                     {/* En-tête */}
@@ -1141,7 +1244,6 @@ const OctroisPage = () => {
                             onClick={() => {
                               setEditingOctroi(octroi);
                               setFormData({
-                                structureId: octroi.structureId,
                                 produitId: octroi.produitId,
                                 quantite: octroi.quantite,
                                 beneficiaireDenomination: octroi.beneficiaireNom,
@@ -1235,6 +1337,72 @@ const OctroisPage = () => {
                 </div>
               ))}
             </div>
+
+            {/* Pagination */}
+            {getFilteredOctrois().length > 0 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-base-300 pt-4">
+                {/* Informations sur la pagination */}
+                <div className="text-sm text-base-content/70">
+                  Affichage de {((currentPage - 1) * itemsPerPage) + 1} à{' '}
+                  {Math.min(currentPage * itemsPerPage, getFilteredOctrois().length)} sur{' '}
+                  {getFilteredOctrois().length} octrois
+                </div>
+
+                {/* Contrôles de pagination */}
+                <div className="flex items-center gap-2">
+                  {/* Sélecteur d'éléments par page */}
+                  <select
+                    className="select select-bordered select-sm"
+                    value={itemsPerPage}
+                    title="Éléments par page"
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                  </select>
+
+                  {/* Boutons de navigation */}
+                  <div className="join">
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      «
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      ‹
+                    </button>
+                    <button className="join-item btn btn-sm btn-active">
+                      Page {currentPage} / {totalPages}
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      ›
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      »
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1256,36 +1424,6 @@ const OctroisPage = () => {
               </h3>
 
               <form onSubmit={handleCreateOctroi} className="space-y-4">
-                {/* Sélection de la structure (Responsable Achats uniquement) */}
-                {(userRole === 'Responsable Achats' || userRole === 'Responsable achats') && (
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-semibold">Structure *</span>
-                    </label>
-                    <select
-                      className="select select-bordered w-full"
-                      value={formData.structureId}
-                      onChange={(e) => {
-                        setFormData({ ...formData, structureId: e.target.value, produitId: '' });
-                        setProduits([]);
-                      }}
-                      required
-                    >
-                      <option value="">Sélectionner une structure...</option>
-                      {structures.map((structure) => (
-                        <option key={structure.id} value={structure.id}>
-                          {structure.name}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="label">
-                      <span className="label-text-alt text-base-content/60">
-                        Sélectionnez d&apos;abord la structure pour voir les produits disponibles
-                      </span>
-                    </label>
-                  </div>
-                )}
-
                 {/* Sélection du produit */}
                 <div className="form-control">
                   <label className="label">
@@ -1295,12 +1433,17 @@ const OctroisPage = () => {
                     className="select select-bordered w-full"
                     value={formData.produitId}
                     onChange={(e) => setFormData({ ...formData, produitId: e.target.value })}
+                    disabled={produits.length === 0}
                     required
                   >
-                    <option value="">Sélectionner un produit...</option>
+                    <option value="">
+                      {produits.length === 0 
+                        ? 'Aucun produit disponible...'
+                        : 'Sélectionner un produit...'}
+                    </option>
                     {produits.map((produit) => (
                       <option key={produit.id} value={produit.id}>
-                        {produit.name} - Stock disponible: {produit.quantity} {produit.unit}
+                        {produit.name} ({produit.structure?.name || 'Structure'}) - Stock: {produit.quantity} {produit.unit}
                       </option>
                     ))}
                   </select>
@@ -1455,6 +1598,38 @@ const OctroisPage = () => {
                   <label className="label">
                     <span className="label-text font-semibold">Documents (PV d'octroi, etc.)</span>
                   </label>
+                  
+                  {/* Affichage des documents existants lors de l'édition */}
+                  {editingOctroi && editingOctroi.documents && editingOctroi.documents.length > 0 && (
+                    <div className="mb-3 p-3 bg-base-200 rounded-lg">
+                      <span className="text-sm font-semibold mb-2 block">📎 Documents existants :</span>
+                      <div className="space-y-2">
+                        {editingOctroi.documents.map((doc: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-base-100 rounded border border-base-300">
+                            <div className="flex items-center gap-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="text-sm">{doc.nom || `Document ${index + 1}`}</span>
+                            </div>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-xs btn-primary"
+                              title="Visualiser le document"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   <input
                     type="file"
                     className="file-input file-input-bordered w-full"
@@ -1468,7 +1643,7 @@ const OctroisPage = () => {
                   />
                   <label className="label">
                     <span className="label-text-alt text-base-content/60">
-                      Formats acceptés: PDF, JPG, PNG, DOC, DOCX. Plusieurs fichiers possibles.
+                      {editingOctroi ? 'Ajouter de nouveaux documents (les documents existants seront conservés)' : 'Formats acceptés: PDF, JPG, PNG, DOC, DOCX. Plusieurs fichiers possibles.'}
                     </span>
                   </label>
                   {uploadedFiles.length > 0 && (
@@ -1537,6 +1712,9 @@ const OctroisPage = () => {
                 <div className="text-sm">
                   {actionType === 'instance' && userRole === 'Directeur' && (
                     <p>L'octroi sera retourné au responsable des achats ou agent de saisie pour modification.</p>
+                  )}
+                  {actionType === 'instance' && (userRole === 'Responsable financier' || userRole === 'Responsable Financier') && (
+                    <p>L'octroi sera retourné au responsable des achats pour correction.</p>
                   )}
                   {actionType === 'instance' && userRole === 'Ordonnateur' && (
                     <p>L'octroi sera retourné au directeur de la structure qui le remettra en instance pour modification par l'agent/responsable achats.</p>

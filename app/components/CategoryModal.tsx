@@ -1,25 +1,19 @@
 import React from 'react'
-import { Ministere, Structure } from '@prisma/client'
-
-type MinistereWithStructures = Ministere & {
-  structures: Structure[]
-}
+import { Ministere } from '@prisma/client'
 
 interface Props {
   name: string;
   description: string;
-  selectedStructureId: string;
-  ministeres: MinistereWithStructures[];
+  ministeres: Ministere[];
   loading: boolean;
   onclose: () => void;
   onChangeName: (value: string) => void;
   onChangeDescription: (value: string) => void;
-  onChangeStructure: (value: string) => void;
   onSubmit: () => void;
   editMode?: boolean;
 }
 const CategoryModal: React.FC<Props> = ({
-  name, description, selectedStructureId, ministeres, loading, onclose, onChangeName, onChangeDescription, onChangeStructure, editMode, onSubmit
+  name, description, ministeres, loading, onclose, onChangeName, onChangeDescription, editMode, onSubmit
 }) => {
   return (
 
@@ -43,29 +37,6 @@ const CategoryModal: React.FC<Props> = ({
           className='input input-bordered w-full mb-4'
           required
         />
-        
-        <div className="mb-4">
-          <label className="label">
-            <span className="label-text">Sélectionner une structure</span>
-          </label>
-          <select
-            value={selectedStructureId}
-            onChange={(e) => onChangeStructure(e.target.value)}
-            className='select select-bordered w-full'
-            required
-          >
-            <option value="">Choisir une structure...</option>
-            {ministeres.map((ministere) => (
-              <optgroup key={ministere.id} label={ministere.name}>
-                {ministere.structures.map((structure) => (
-                  <option key={structure.id} value={structure.id}>
-                    {structure.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
 
         <textarea
           placeholder='Description de la catégorie (optionnel)'
@@ -77,7 +48,7 @@ const CategoryModal: React.FC<Props> = ({
         <button
           className='btn btn-primary'
           onClick={onSubmit}
-          disabled={loading || !name.trim() || !selectedStructureId}
+          disabled={loading || !name.trim()}
         >
           {loading
             ? editMode

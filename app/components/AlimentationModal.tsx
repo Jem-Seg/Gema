@@ -81,6 +81,9 @@ const AlimentationModal: React.FC<AlimentationModalProps> = ({ mode = 'create', 
   // Charger les données initiales en mode édition
   useEffect(() => {
     if (mode === 'edit' && alimentation) {
+      console.log('📝 AlimentationModal - Mode édition, alimentation:', alimentation);
+      console.log('📄 Documents disponibles:', alimentation.documents);
+      
       setProduitId(alimentation.produitId);
       setQuantite(alimentation.quantite);
       setPrixUnitaire(alimentation.prixUnitaire);
@@ -93,6 +96,20 @@ const AlimentationModal: React.FC<AlimentationModalProps> = ({ mode = 'create', 
         quantity: 0,
         structureId: ''
       });
+      
+      // Réinitialiser les documents à supprimer et les nouveaux documents
+      setDocumentsToDelete([]);
+      setDocuments([]);
+    } else if (mode === 'create') {
+      // Réinitialiser tous les états en mode création
+      setProduitId('');
+      setQuantite(0);
+      setPrixUnitaire(0);
+      setFournisseurNom('');
+      setFournisseurNIF('');
+      setSelectedProduit(null);
+      setDocumentsToDelete([]);
+      setDocuments([]);
     }
   }, [mode, alimentation]);
 
@@ -269,6 +286,10 @@ const AlimentationModal: React.FC<AlimentationModalProps> = ({ mode = 'create', 
           }
 
           toast.success('Alimentation modifiée avec succès !');
+          
+          // Émettre un événement pour rafraîchir le dashboard
+          window.dispatchEvent(new Event('stockUpdated'));
+          
           resetForm();
           (document.getElementById('modal_modifier_alimentation') as HTMLDialogElement)?.close();
           if (onSuccess) onSuccess();
@@ -324,6 +345,10 @@ const AlimentationModal: React.FC<AlimentationModalProps> = ({ mode = 'create', 
           }
 
           toast.success('Alimentation créée avec succès !');
+          
+          // Émettre un événement pour rafraîchir le dashboard
+          window.dispatchEvent(new Event('stockUpdated'));
+          
           resetForm();
           (document.getElementById('modal_nouvelle_alimentation') as HTMLDialogElement)?.close();
           if (onSuccess) onSuccess();

@@ -193,6 +193,10 @@ const GivePage = () => {
       const response = await deductStockWithTransaction(order, userData.structureId);
       if (response?.success) {
         toast.success("L'octroi a été effectué avec succès");
+        
+        // Émettre un événement pour rafraîchir le dashboard
+        window.dispatchEvent(new Event('stockUpdated'));
+        
         setOrder([]);
         setSelectedProductIds([]);
         setShowConfirmation(false);

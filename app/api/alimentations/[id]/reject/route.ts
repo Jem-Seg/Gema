@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/server-auth';
-import prisma from '@/lib/prisma';
 import { rejectAlimentation } from '@/lib/workflows/alimentation';
-
-// Fonction utilitaire pour récupérer les infos utilisateur
-async function getUserInfo() {
-  const currentUser = await getCurrentUser();
-  if (!currentUser) {
-    return { error: 'Non authentifié', status: 401 };
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: currentUser.id },
-    include: { 
-      role: true,
-      structure: true,
-      ministere: true
-    }
-  });
-
-  if (!dbUser || !dbUser.isApproved) {
-    return { error: 'Utilisateur non approuvé', status: 403 };
-  }
-
-  return { user: dbUser };
-}
 
 // POST - Rejeter une alimentation
 export async function POST(
@@ -32,12 +8,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userInfo = await getUserInfo();
-    if ('error' in userInfo) {
-      return NextResponse.json({ error: userInfo.error }, { status: userInfo.status });
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const { user } = userInfo;
+    if (!user.isApproved) {
+      return NextResponse.json({ error: 'Utilisateur non approuvé' }, { status: 403 });
+    }
     const { id: alimentationId } = await params;
 
     // Seul l'ordonnateur peut rejeter

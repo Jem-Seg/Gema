@@ -6,32 +6,23 @@ export async function POST() {
   try {
     await requireAdmin();
 
-    // Rôles par défaut à créer
+    // Rôles par défaut à créer (workflow simplifié - 4 rôles)
     const defaultRoles = [
       {
         name: 'Agent de saisie',
         description: 'Utilisateur chargé de la saisie des données',
-        requiresStructure: true
-      },
-      {
-        name: 'Directeur',
-        description: 'Directeur d\'une structure',
-        requiresStructure: true
       },
       {
         name: 'Responsable Achats',
         description: 'Responsable des achats du ministère',
-        requiresStructure: false
       },
       {
-        name: 'Directeur Financier',
-        description: 'Directeur financier du ministère',
-        requiresStructure: false
+        name: 'Responsable Financier',
+        description: 'Responsable financier du ministère',
       },
       {
         name: 'Ordonnateur',
         description: 'Ordonnateur du ministère',
-        requiresStructure: false
       }
     ];
 

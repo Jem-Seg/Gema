@@ -14,7 +14,6 @@ async function getUserInfo() {
     where: { id: currentUser.id },
     include: {
       role: true,
-      structure: true,
       ministere: true
     }
   });
@@ -40,8 +39,8 @@ export async function POST(
     const { user } = userInfo;
     const { id: octroiId } = await context.params;
 
-    // Vérifier que l'utilisateur a un rôle autorisé
-    const authorizedRoles = ['Directeur', 'Directeur de la structure', 'Ordonnateur'];
+    // Vérifier que l'utilisateur a un rôle autorisé (nouveau workflow: Resp. Achats, Resp. Financier, Ordonnateur)
+    const authorizedRoles = ['Responsable Achats', 'Responsable achats', 'Responsable Financier', 'Responsable financier', 'Ordonnateur'];
     if (!user.role?.name || !authorizedRoles.includes(user.role.name)) {
       return NextResponse.json(
         { error: 'Rôle non autorisé pour cette action' },

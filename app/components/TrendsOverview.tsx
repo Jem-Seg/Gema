@@ -14,7 +14,8 @@ export default function TrendsOverview({ structureId }: TrendsOverviewProps) {
 
   useEffect(() => {
     const loadStats = async () => {
-      if (!structureId) {
+      // Attendre que structureId soit défini (peut être "" pour toutes les structures)
+      if (structureId === undefined) {
         setLoading(false);
         return;
       }
@@ -26,7 +27,8 @@ export default function TrendsOverview({ structureId }: TrendsOverviewProps) {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const url = `/api/structures/${structureId}/statistics?startDate=${startDate}&endDate=${endDate}`;
+        // Si structureId est vide, utiliser 'all' pour les statistiques agrégées
+        const url = `/api/structures/${structureId || 'all'}/statistics?startDate=${startDate}&endDate=${endDate}`;
         const response = await fetch(url);
 
         if (!response.ok) {

@@ -151,10 +151,11 @@ export default function EtatsPage() {
         if (typeEtat === 'bon-entree') {
           const response = await fetch(`/api/alimentations?structureId=${structureId}`);
           if (response.ok) {
-            const data = await response.json();
-            setAlimentations(data.alimentations || []);
+            const result = await response.json();
+            setAlimentations(result.data || result.alimentations || []);
           } else {
             console.error('Erreur API alimentations:', response.status);
+            setAlimentations([]);
           }
         }
 
@@ -162,14 +163,17 @@ export default function EtatsPage() {
         if (typeEtat === 'bon-sortie') {
           const response = await fetch(`/api/octrois?structureId=${structureId}`);
           if (response.ok) {
-            const data = await response.json();
-            setOctrois(data.octrois || []);
+            const result = await response.json();
+            setOctrois(result.data || result.octrois || []);
           } else {
             console.error('Erreur API octrois:', response.status);
+            setOctrois([]);
           }
         }
       } catch (error) {
         console.error('❌ Erreur chargement mouvements:', error);
+        setAlimentations([]);
+        setOctrois([]);
       }
     };
 

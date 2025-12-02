@@ -6,7 +6,9 @@ export type AlimentationStatus =
   | "EN_INSTANCE_ACHATS"   // Responsable achats demande modifications
   | "VALIDE_ACHATS"        // Validé par Responsable achats → va au Responsable financier
   | "EN_INSTANCE_FINANCIER" // Responsable financier demande modifications
-  | "VALIDE_FINANCIER"     // Validé par Responsable financier → va à l'Ordonnateur
+  | "VALIDE_FINANCIER"     // Validé par Responsable financier → En instance de traitement Ordonnateur
+  | "EN_INSTANCE_ORDONNATEUR" // VALIDE_FINANCIER renommé : En attente traitement Ordonnateur
+  | "MIS_EN_INSTANCE"      // Ordonnateur renvoie pour corrections → Responsable achats
   | "VALIDE_ORDONNATEUR"   // Validation finale + mise à jour stock
   | "REJETE";              // Rejeté par Ordonnateur
 
@@ -20,6 +22,7 @@ export interface CreateAlimentationData {
   ministereId: string;
   structureId: string;
   createurId: string;
+  statutInitial?: AlimentationStatus; // Statut initial selon le rôle
 }
 
 // Génération automatique du numéro d'alimentation
@@ -49,6 +52,7 @@ async function generateAlimentationNumber(): Promise<string> {
 export async function createAlimentation(data: CreateAlimentationData) {
   try {
     const numero = await generateAlimentationNumber();
+    const statut = data.statutInitial || "EN_ATTENTE"; // Par défaut EN_ATTENTE
     
     const alimentation = await prisma.alimentation.create({
       data: {
@@ -58,7 +62,7 @@ export async function createAlimentation(data: CreateAlimentationData) {
         prixUnitaire: data.prixUnitaire,
         fournisseurNom: data.fournisseurNom,
         fournisseurNIF: data.fournisseurNIF,
-        statut: "EN_ATTENTE", // Création par Agent de saisie → en attente validation Responsable achats
+        statut,
         ministereId: data.ministereId,
         structureId: data.structureId,
         createurId: data.createurId
@@ -80,16 +84,20 @@ export async function createAlimentation(data: CreateAlimentationData) {
         entityId: alimentation.id,
         action: "CREATION",
         ancienStatut: "",
-        nouveauStatut: "EN_ATTENTE",
+        nouveauStatut: statut,
         userId: data.createurId,
-        userRole: "Agent de saisie"
+        userRole: statut === "VALIDE_ACHATS" ? "Responsable achats" : "Agent de saisie"
       }
     });
+
+    const message = statut === "VALIDE_ACHATS" 
+      ? `Alimentation ${numero} créée avec succès et envoyée au Responsable financier`
+      : `Alimentation ${numero} créée avec succès et envoyée au Responsable achats`;
 
     return {
       success: true,
       data: alimentation,
-      message: `Alimentation ${numero} créée avec succès et envoyée au Responsable achats`
+      message
     };
   } catch (error) {
     console.error('Erreur lors de la création de l\'alimentation:', error);
@@ -140,7 +148,15 @@ export async function instanceAlimentation(
         if (alimentation.statut !== "VALIDE_ACHATS") {
           return { success: false, message: "Vous ne pouvez mettre en instance que les alimentations validées par le Responsable achats" };
         }
-        nouveauStatut = "EN_INSTANCE_FINANCIER"; // Retourne à l'Agent de saisie pour modifications
+        nouveauStatut = "EN_INSTANCE_ACHATS"; // Retourne au Responsable Achats pour modifications
+        break;
+        
+      case "Ordonnateur":
+        // Ordonnateur peut mettre en instance seulement si EN_INSTANCE_ORDONNATEUR
+        if (alimentation.statut !== "EN_INSTANCE_ORDONNATEUR") {
+          return { success: false, message: "Vous ne pouvez mettre en instance que les alimentations en instance ordonnateur" };
+        }
+        nouveauStatut = "MIS_EN_INSTANCE"; // Retourne au Responsable Achats pour corrections
         break;
         
       default:
@@ -173,7 +189,11 @@ export async function instanceAlimentation(
     return {
       success: true,
       data: updatedAlimentation,
-      message: `Alimentation renvoyée à l'Agent de saisie pour modifications`
+      message: userRole === "Ordonnateur"
+        ? `Alimentation renvoyée au Responsable Achats pour modifications`
+        : userRole === "Responsable Financier" || userRole === "Responsable financier"
+        ? `Alimentation renvoyée au Responsable Achats pour modifications`
+        : `Alimentation renvoyée à l'Agent de saisie pour modifications`
     };
   } catch (error) {
     console.error('Erreur lors de la mise en instance:', error);
@@ -209,26 +229,29 @@ export async function validateAlimentation(
     switch (userRole) {
       case "Responsable Achats":
       case "Responsable achats":
-        // Peut valider si EN_ATTENTE ou EN_INSTANCE_ACHATS
-        if (alimentation.statut !== "EN_ATTENTE" && alimentation.statut !== "EN_INSTANCE_ACHATS") {
-          return { success: false, message: "Vous ne pouvez valider que les alimentations en attente ou en instance achats" };
+        // Peut valider si EN_ATTENTE, EN_INSTANCE_ACHATS, ou MIS_EN_INSTANCE (corrections Ordonnateur)
+        // Ne peut PAS valider VALIDE_ACHATS (déjà validé précédemment)
+        if (alimentation.statut !== "EN_ATTENTE" && 
+            alimentation.statut !== "EN_INSTANCE_ACHATS" && 
+            alimentation.statut !== "MIS_EN_INSTANCE") {
+          return { success: false, message: "Vous ne pouvez valider que les alimentations en attente, en instance achats, ou mis en instance par l'ordonnateur" };
         }
-        nouveauStatut = "VALIDE_ACHATS"; // Passe au Responsable financier
+        nouveauStatut = "VALIDE_ACHATS"; // Validé par Resp. Achats → En attente validation Resp. Financier
         break;
         
       case "Responsable Financier":
       case "Responsable financier":
-        // Peut valider si VALIDE_ACHATS ou EN_INSTANCE_FINANCIER
-        if (alimentation.statut !== "VALIDE_ACHATS" && alimentation.statut !== "EN_INSTANCE_FINANCIER") {
-          return { success: false, message: "Vous ne pouvez valider que les alimentations validées par le Responsable achats ou en instance financier" };
+        // Peut valider si VALIDE_ACHATS
+        if (alimentation.statut !== "VALIDE_ACHATS") {
+          return { success: false, message: "Vous ne pouvez valider que les alimentations validées par le Responsable achats" };
         }
-        nouveauStatut = "VALIDE_FINANCIER"; // Passe à l'Ordonnateur
+        nouveauStatut = "EN_INSTANCE_ORDONNATEUR"; // En instance de traitement Ordonnateur
         break;
         
       case "Ordonnateur":
-        // Peut valider si VALIDE_FINANCIER
-        if (alimentation.statut !== "VALIDE_FINANCIER") {
-          return { success: false, message: "Vous ne pouvez valider que les alimentations validées par le Responsable financier" };
+        // Peut valider si EN_INSTANCE_ORDONNATEUR
+        if (alimentation.statut !== "EN_INSTANCE_ORDONNATEUR") {
+          return { success: false, message: "Vous ne pouvez valider que les alimentations en instance ordonnateur" };
         }
         nouveauStatut = "VALIDE_ORDONNATEUR"; // Validation finale
         shouldUpdateStock = true; // Mise à jour du stock
@@ -345,15 +368,15 @@ export async function rejectAlimentation(
       return { success: false, message: "Seul l'ordonnateur peut rejeter une alimentation" };
     }
 
-    if (alimentation.statut !== "VALIDE_FINANCIER") {
-      return { success: false, message: "Vous ne pouvez rejeter que les alimentations validées par le Responsable financier" };
+    if (alimentation.statut !== "EN_INSTANCE_ORDONNATEUR") {
+      return { success: false, message: "Vous ne pouvez rejeter que les alimentations en instance ordonnateur" };
     }
 
     // Mettre à jour l'alimentation
     const updatedAlimentation = await prisma.alimentation.update({
       where: { id: alimentationId },
       data: {
-        statut: "REJETE",
+        statut: "REJETE", // Retourne au Responsable Achats avec statut REJETE
         observations
       }
     });
@@ -388,30 +411,35 @@ export async function getAlimentations(userId: string, userRole: string, structu
   try {
     const whereClause: { structureId?: string; ministereId?: string } = {};
 
-    // Filtrer selon le rôle
-    switch (userRole) {
-      case "Agent de saisie":
-        // Agent de saisie voit toutes les alimentations de son ministère (peut intervenir sur toutes les structures)
-        if (!ministereId) {
-          return { success: false, message: "Ministère non défini" };
-        }
-        whereClause.ministereId = ministereId;
-        break;
-      case "Responsable Achats":
-      case "Responsable achats":
-      case "Responsable Financier":
-      case "Responsable financier":
-      case "Ordonnateur":
-        if (!ministereId) {
-          return { success: false, message: "Ministère non défini" };
-        }
-        whereClause.ministereId = ministereId;
-        break;
-      case "Admin":
-        // Admin peut voir toutes les alimentations
-        break;
-      default:
-        return { success: false, message: "Rôle non reconnu" };
+    // Si structureId est fourni, filtrer par structure spécifique
+    if (structureId) {
+      whereClause.structureId = structureId;
+    } else {
+      // Sinon, filtrer selon le rôle
+      switch (userRole) {
+        case "Agent de saisie":
+          // Agent de saisie voit toutes les alimentations de son ministère (peut intervenir sur toutes les structures)
+          if (!ministereId) {
+            return { success: false, message: "Ministère non défini" };
+          }
+          whereClause.ministereId = ministereId;
+          break;
+        case "Responsable Achats":
+        case "Responsable achats":
+        case "Responsable Financier":
+        case "Responsable financier":
+        case "Ordonnateur":
+          if (!ministereId) {
+            return { success: false, message: "Ministère non défini" };
+          }
+          whereClause.ministereId = ministereId;
+          break;
+        case "Admin":
+          // Admin peut voir toutes les alimentations
+          break;
+        default:
+          return { success: false, message: "Rôle non reconnu" };
+      }
     }
 
     const alimentations = await prisma.alimentation.findMany({

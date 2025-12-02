@@ -3,6 +3,16 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // PRIORITÉ 1 : Rediriger /uploads vers /api/files pour compatibilité
+  if (pathname.startsWith('/uploads/')) {
+    const filename = pathname.replace('/uploads/', '');
+    const newUrl = new URL(`/api/files/${filename}`, request.url);
+    return NextResponse.rewrite(newUrl);
+  }
+
+  // PRIORITÉ 2 : Authentification NextAuth
   const token = await getToken({ 
     req: request,
     secret: process.env.NEXTAUTH_SECRET 
@@ -60,6 +70,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|uploads).*)',
+    '/((?!api/auth|api/files|_next/static|_next/image|favicon.ico).*)',
   ],
 }

@@ -53,7 +53,7 @@ export async function PUT(
     // Récupérer l'octroi
     const octroi = await prisma.octroi.findUnique({
       where: { id },
-      include: { produit: true, structure: true }
+      include: { produit: true }
     });
 
     if (!octroi) {
@@ -63,8 +63,8 @@ export async function PUT(
       );
     }
 
-    // Vérifier que le statut permet la modification (SAISIE, INSTANCE ou REJETE)
-    const editableStatuses = ['SAISIE', 'INSTANCE_DIRECTEUR', 'INSTANCE_ORDONNATEUR', 'REJETE'];
+    // Vérifier que le statut permet la modification
+    const editableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'REJETE'];
     if (!editableStatuses.includes(octroi.statut)) {
       return NextResponse.json(
         { success: false, message: 'Impossible de modifier un octroi avec ce statut' },
@@ -81,15 +81,7 @@ export async function PUT(
     }
 
     // Vérifier les permissions selon le rôle
-    if (dbUser.role?.name === 'Agent de saisie') {
-      // Agent de saisie: seulement sa structure
-      if (octroi.structureId !== dbUser.structureId) {
-        return NextResponse.json(
-          { success: false, message: 'Vous ne pouvez modifier que les octrois de votre structure' },
-          { status: 403 }
-        );
-      }
-    } else if (dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats') {
+    if (dbUser.role?.name === 'Agent de saisie' || dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats') {
       // Responsable Achats: toutes les structures de son ministère
       if (octroi.ministereId !== dbUser.ministereId) {
         return NextResponse.json(
@@ -115,16 +107,8 @@ export async function PUT(
         );
       }
 
-      // Vérifier la structure du nouveau produit
-      if (dbUser.role?.name === 'Agent de saisie') {
-        if (newProduit.structureId !== dbUser.structureId) {
-          return NextResponse.json(
-            { success: false, message: 'Le produit doit appartenir à votre structure' },
-            { status: 403 }
-          );
-        }
-        targetStructureId = dbUser.structureId;
-      } else if (dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats') {
+      // Vérifier que le produit appartient au ministère
+      if (dbUser.role?.name === 'Agent de saisie' || dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats') {
         // Vérifier que le produit appartient à une structure du ministère
         const structure = await prisma.structure.findUnique({
           where: { id: newProduit.structureId }
@@ -165,7 +149,7 @@ export async function PUT(
           produitId: produitId,
           id: { not: id }, // Exclure l'octroi en cours de modification
           statut: {
-            in: ['SAISIE', 'INSTANCE_DIRECTEUR', 'VALIDE_DIRECTEUR', 'VALIDE_FINANCIER', 'INSTANCE_ORDONNATEUR']
+            in: ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE']
           }
         },
         select: {
@@ -185,6 +169,32 @@ export async function PUT(
       }
     }
 
+    // Déterminer le nouveau statut après modification selon le rôle et le statut actuel
+    let nouveauStatut = octroi.statut;
+    const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
+    const isRespAchats = dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats';
+    
+    if (isAgentSaisie) {
+      // Agent de saisie : modifications selon le statut actuel
+      if (octroi.statut === 'EN_INSTANCE_FINANCIER') {
+        nouveauStatut = 'EN_INSTANCE_ACHATS'; // → Responsable achats
+      } else if (octroi.statut === 'MIS_EN_INSTANCE') {
+        nouveauStatut = 'EN_INSTANCE_ACHATS'; // → Responsable achats
+      } else if (octroi.statut === 'REJETE') {
+        nouveauStatut = 'EN_INSTANCE_ACHATS'; // → Responsable achats
+      }
+      // EN_ATTENTE et EN_INSTANCE_ACHATS gardent leur statut
+    } else if (isRespAchats) {
+      // Responsable achats : modifications selon le statut actuel
+      if (octroi.statut === 'MIS_EN_INSTANCE') {
+        nouveauStatut = 'VALIDE_ACHATS'; // → Responsable financier
+      } else if (octroi.statut === 'REJETE') {
+        nouveauStatut = 'VALIDE_ACHATS'; // → Responsable financier
+      }
+      // Autres statuts gardent leur statut
+    }
+    // EN_ATTENTE et VALIDE_ACHATS gardent leur statut par défaut
+
     // Mettre à jour l'octroi
     const updatedOctroi = await prisma.octroi.update({
       where: { id },
@@ -195,8 +205,7 @@ export async function PUT(
         beneficiaireNom: beneficiaireNom,
         dateOctroi: dateOctroi ? new Date(dateOctroi) : octroi.dateOctroi,
         reference: reference || octroi.reference,
-        // Remettre le statut à SAISIE si l'octroi était en instance ou rejeté
-        statut: ['INSTANCE_DIRECTEUR', 'INSTANCE_ORDONNATEUR', 'REJETE'].includes(octroi.statut) ? 'SAISIE' : octroi.statut
+        statut: nouveauStatut
       },
       include: {
         produit: true,
@@ -209,17 +218,23 @@ export async function PUT(
     });
 
     // Enregistrer dans l'historique si le statut a changé
-    if (['INSTANCE_DIRECTEUR', 'INSTANCE_ORDONNATEUR', 'REJETE'].includes(octroi.statut)) {
+    if (nouveauStatut !== octroi.statut) {
+      const observationMessages: Record<string, string> = {
+        'EN_INSTANCE_FINANCIER': isAgentSaisie ? 'Octroi modifié par Agent de saisie - Renvoi au Responsable Achats' : 'Octroi modifié',
+        'REJETE': isAgentSaisie ? 'Octroi modifié après rejet - Renvoi au Responsable Achats' : 'Octroi modifié après rejet - Renvoi au Responsable Financier',
+        'MIS_EN_INSTANCE': isAgentSaisie ? 'Octroi modifié après mise en instance ordonnateur - Renvoi au Responsable Achats' : 'Octroi modifié après mise en instance ordonnateur - Renvoi au Responsable Financier'
+      };
+      
       await prisma.actionHistorique.create({
         data: {
           entityType: 'OCTROI',
           entityId: id,
           action: 'MODIFICATION',
           ancienStatut: octroi.statut,
-          nouveauStatut: 'SAISIE',
+          nouveauStatut: nouveauStatut,
           userId: dbUser.id,
           userRole: dbUser.role?.name || '',
-          observations: 'Octroi modifié et remis en statut SAISIE'
+          observations: observationMessages[octroi.statut] || 'Octroi modifié'
         }
       });
     }
@@ -293,23 +308,21 @@ export async function DELETE(
 
     // Pour les non-admins, vérifier que le statut permet la suppression
     if (!isAdmin) {
-      if (octroi.statut !== 'SAISIE') {
+      // Agent de saisie peut supprimer: EN_ATTENTE, EN_INSTANCE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE, REJETE
+      // Responsable achats peut supprimer tous sauf VALIDE_ORDONNATEUR
+      const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
+      const deletableStatuses = isAgentSaisie 
+        ? ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE']
+        : ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'REJETE'];
+      if (!deletableStatuses.includes(octroi.statut)) {
         return NextResponse.json(
-          { success: false, message: 'Impossible de supprimer un octroi qui a déjà été validé' },
+          { success: false, message: 'Impossible de supprimer un octroi qui a déjà été validé par l\'ordonnateur' },
           { status: 400 }
         );
       }
 
       // Vérifier les permissions selon le rôle
-      if (dbUser.role?.name === 'Agent de saisie') {
-        // Agent de saisie: seulement sa structure
-        if (octroi.structureId !== dbUser.structureId) {
-          return NextResponse.json(
-            { success: false, message: 'Vous ne pouvez supprimer que les octrois de votre structure' },
-            { status: 403 }
-          );
-        }
-      } else if (dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats') {
+      if (dbUser.role?.name === 'Agent de saisie' || dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats') {
         // Responsable Achats: toutes les structures de son ministère
         if (octroi.ministereId !== dbUser.ministereId) {
           return NextResponse.json(

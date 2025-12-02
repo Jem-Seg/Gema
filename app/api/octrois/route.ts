@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const result = await getOctrois(
       user.id,
       userRole,
-      structureId || user.structureId || undefined,
+      structureId || undefined,
       user.ministereId || undefined
     );
 
@@ -68,7 +68,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      structureId,
       produitId,
       quantite,
       beneficiaireNom,
@@ -93,10 +92,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier que le produit existe
+    // Vérifier que le produit existe et appartient au ministère de l'utilisateur
     const produit = await prisma.produit.findUnique({
-      where: { id: produitId },
-      include: { structure: true }
+      where: { id: produitId }
     });
 
     if (!produit) {
@@ -106,44 +104,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Déterminer la structure cible
-    let targetStructureId = structureId;
-
-    // Pour Agent de saisie, utiliser sa structure
-    if (user.role.name === 'Agent de saisie') {
-      targetStructureId = user.structureId;
-      // Vérifier que le produit appartient à sa structure
-      if (produit.structureId !== user.structureId) {
-        return NextResponse.json(
-          { error: 'Vous ne pouvez créer des octrois que pour les produits de votre structure' },
-          { status: 403 }
-        );
-      }
-    }
-    // Pour Responsable Achats, vérifier que la structure est dans son ministère
-    else if (user.role.name === 'Responsable Achats' || user.role.name === 'Responsable achats') {
-      if (!targetStructureId) {
-        return NextResponse.json(
-          { error: 'La structure doit être spécifiée' },
-          { status: 400 }
-        );
-      }
-
-      // Vérifier que le produit appartient à la structure sélectionnée
-      if (produit.structureId !== targetStructureId) {
-        return NextResponse.json(
-          { error: 'Le produit ne correspond pas à la structure sélectionnée' },
-          { status: 400 }
-        );
-      }
-
-      // Vérifier que la structure est dans son ministère
-      if (produit.ministereId !== user.ministereId) {
-        return NextResponse.json(
-          { error: 'Vous ne pouvez créer des octrois que pour les structures de votre ministère' },
-          { status: 403 }
-        );
-      }
+    if (produit.ministereId !== user.ministereId) {
+      return NextResponse.json(
+        { error: 'Vous ne pouvez créer des octrois que pour les produits de votre ministère' },
+        { status: 403 }
+      );
     }
 
     const result = await createOctroi({
@@ -155,7 +120,7 @@ export async function POST(request: NextRequest) {
       dateOctroi,
       reference,
       ministereId: produit.ministereId,
-      structureId: targetStructureId || produit.structureId,
+      structureId: produit.structureId,
       createurId: user.id,
       userRole: user.role.name
     });

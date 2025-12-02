@@ -111,30 +111,33 @@ export async function getMinistereAndStructure(ministereId?: string, structureId
 }
 export async function createCategory(
   name: string,
-  structureId: string,
+  ministereId: string,
   userId: string,
   description?: string
 ) {
-  if (!name || !userId) return;
+  if (!name || !userId || !ministereId) return;
 
   try {
-    // Vérifier les permissions pour cette structure
-    const hasPermission = await canManageCategoriesInStructure(userId, structureId);
-    if (!hasPermission) {
-      throw new Error('Permission refusée. Vous ne pouvez créer des catégories que dans les structures autorisées selon votre rôle.');
+    // Vérifier que l'utilisateur peut gérer les catégories de ce ministère
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+
+    if (!user || !user.isApproved) {
+      throw new Error('Utilisateur non autorisé');
     }
 
-    const structure = await getMinistereAndStructure('', structureId);
-    if (!structure) {
-      throw new Error('Structure introuvable ou non rattachée au ministère');
+    // Admin a tous les droits
+    if (!user.isAdmin && user.ministereId !== ministereId) {
+      throw new Error('Permission refusée. Vous ne pouvez créer des catégories que dans votre ministère.');
     }
 
     const newCategory = await prisma.category.create({
       data: {
         name,
         description: description || "",
-        structureId: structure.id,
-        ministereId: structure.ministere.id
+        ministereId: ministereId
       }
     });
     return newCategory;
@@ -147,24 +150,28 @@ export async function createCategory(
 export async function updateCategory(
   id: string,
   name: string,
-  structureId: string,
+  ministereId: string,
   userId: string,
   description?: string
 ) {
-  if (!id || !name || !structureId || !userId) {
-    throw new Error('ID, nom, ID de structure et ID utilisateur sont requis pour la mise à jour');
+  if (!id || !name || !ministereId || !userId) {
+    throw new Error('ID, nom, ID de ministère et ID utilisateur sont requis pour la mise à jour');
   }
 
   try {
-    // Vérifier les permissions pour cette structure
-    const hasPermission = await canManageCategoriesInStructure(userId, structureId);
-    if (!hasPermission) {
-      throw new Error('Permission refusée. Vous ne pouvez modifier des catégories que dans les structures autorisées selon votre rôle.');
+    // Vérifier que l'utilisateur peut gérer les catégories de ce ministère
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+
+    if (!user || !user.isApproved) {
+      throw new Error('Utilisateur non autorisé');
     }
 
-    const structure = await getMinistereAndStructure('', structureId);
-    if (!structure) {
-      throw new Error('Structure introuvable ou non rattachée au ministère');
+    // Admin a tous les droits
+    if (!user.isAdmin && user.ministereId !== ministereId) {
+      throw new Error('Permission refusée. Vous ne pouvez modifier des catégories que dans votre ministère.');
     }
 
     const updatedCategory = await prisma.category.update({
@@ -172,8 +179,7 @@ export async function updateCategory(
       data: {
         name,
         description: description || "",
-        structureId: structure.id,
-        ministereId: structure.ministere.id
+        ministereId: ministereId
       }
     });
     return updatedCategory;
@@ -182,27 +188,30 @@ export async function updateCategory(
     throw error;
   }
 }
-export async function deleteCategory(id: string, structureId: string, userId: string) {
-  if (!id || !structureId || !userId) {
-    throw new Error('ID, ID de structure et ID utilisateur sont requis pour la suppression');
+export async function deleteCategory(id: string, ministereId: string, userId: string) {
+  if (!id || !ministereId || !userId) {
+    throw new Error('ID, ID de ministère et ID utilisateur sont requis pour la suppression');
   }
 
   try {
-    // Vérifier les permissions pour cette structure
-    const hasPermission = await canManageCategoriesInStructure(userId, structureId);
-    if (!hasPermission) {
-      throw new Error('Permission refusée. Vous ne pouvez supprimer des catégories que dans les structures autorisées selon votre rôle.');
+    // Vérifier que l'utilisateur peut gérer les catégories de ce ministère
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+
+    if (!user || !user.isApproved) {
+      throw new Error('Utilisateur non autorisé');
     }
 
-    const structure = await getMinistereAndStructure('', structureId);
-    if (!structure) {
-      throw new Error('Structure introuvable ou non rattachée au ministère');
+    // Admin a tous les droits
+    if (!user.isAdmin && user.ministereId !== ministereId) {
+      throw new Error('Permission refusée. Vous ne pouvez supprimer des catégories que dans votre ministère.');
     }
 
     const deletedCategory = await prisma.category.delete({
       where: {
-        id: id,
-        structureId: structureId
+        id: id
       },
     });
     return deletedCategory;
@@ -258,11 +267,7 @@ export async function getAllCategoriesWithDetails(userId?: string) {
     if (user.isAdmin) {
       const categories = await prisma.category.findMany({
         include: {
-          structure: {
-            include: {
-              ministere: true
-            }
-          }
+          ministere: true
         },
         orderBy: { name: 'asc' }
       });
@@ -272,31 +277,11 @@ export async function getAllCategoriesWithDetails(userId?: string) {
     // Déterminer le filtre selon le rôle de l'utilisateur
     let whereClause: any;
 
-    // Directeur : seulement sa propre structure
-    if (user.role?.name === "Directeur" && user.structureId) {
-      whereClause = { structureId: user.structureId };
+    // Tous les utilisateurs voient les catégories de leur ministère
+    if (user.ministereId) {
+      whereClause = { ministereId: user.ministereId };
     }
-    // Agent de saisie : seulement sa propre structure
-    else if (user.role?.name === "Agent de saisie" && user.structureId) {
-      whereClause = { structureId: user.structureId };
-    }
-    // Responsable Achats, Directeur Financier, Responsable financier, Ordonnateur : tout le ministère
-    else if (
-      (user.role?.name === "Responsable Achats" ||
-        user.role?.name === "Responsable achats" ||
-        user.role?.name === "Directeur Financier" ||
-        user.role?.name === "Directeur financier" ||
-        user.role?.name === "Responsable financier" ||
-        user.role?.name === "Ordonnateur") &&
-      user.ministereId
-    ) {
-      whereClause = { 
-        structure: {
-          ministereId: user.ministereId
-        }
-      };
-    }
-    // Si l'utilisateur n'a pas de rôle reconnu ou pas de rattachement
+    // Si l'utilisateur n'a pas de ministère
     else {
       throw new Error('Permissions insuffisantes pour consulter les catégories');
     }
@@ -304,11 +289,7 @@ export async function getAllCategoriesWithDetails(userId?: string) {
     const categories = await prisma.category.findMany({
       where: whereClause,
       include: {
-        structure: {
-          include: {
-            ministere: true
-          }
-        }
+        ministere: true
       },
       orderBy: { name: 'asc' }
     });
@@ -353,29 +334,8 @@ export async function getUserMinistereStructures(userId: string) {
       return allMinisteres;
     }
 
-    // Agent de saisie : seulement sa propre structure
-    if (user.role?.name === "Agent de saisie" && user.structureId) {
-      const structure = await prisma.structure.findUnique({
-        where: { id: user.structureId },
-        include: { ministere: true }
-      });
-
-      if (!structure) {
-        throw new Error('Structure de l\'utilisateur introuvable');
-      }
-
-      return [{
-        ...structure.ministere,
-        structures: [structure]
-      }];
-    }
-
-    // Responsable Achats : toutes les structures de son ministère
-    if (user.role?.name === "Responsable Achats" || user.role?.name === "Responsable achats") {
-      if (!user.ministereId) {
-        throw new Error('Utilisateur Responsable Achats non rattaché à un ministère');
-      }
-
+    // Tous les utilisateurs : toutes les structures de leur ministère
+    if (user.ministereId) {
       const ministere = await prisma.ministere.findUnique({
         where: { id: user.ministereId },
         include: {
@@ -392,92 +352,8 @@ export async function getUserMinistereStructures(userId: string) {
       return [ministere];
     }
 
-    // Responsable Financier : Accès à toutes les structures de son ministère
-    if (user.role?.name === "Responsable Financier" || user.role?.name === "Responsable financier") {
-      if (!user.ministereId) {
-        throw new Error('Utilisateur Responsable Financier non rattaché à un ministère');
-      }
-
-      const ministere = await prisma.ministere.findUnique({
-        where: { id: user.ministereId },
-        include: {
-          structures: {
-            orderBy: { name: 'asc' }
-          }
-        }
-      });
-
-      if (!ministere) {
-        throw new Error('Ministère introuvable');
-      }
-
-      return [ministere];
-    }
-
-    // Directeur Financier : Accès à toutes les structures de son ministère
-    if (user.role?.name === "Directeur Financier" || user.role?.name === "Directeur financier") {
-      if (!user.ministereId) {
-        throw new Error('Utilisateur Directeur Financier non rattaché à un ministère');
-      }
-
-      const ministere = await prisma.ministere.findUnique({
-        where: { id: user.ministereId },
-        include: {
-          structures: {
-            orderBy: { name: 'asc' }
-          }
-        }
-      });
-
-      if (!ministere) {
-        throw new Error('Ministère introuvable');
-      }
-
-      return [ministere];
-    }
-
-    // Ordonnateur : Accès à toutes les structures de son ministère
-    if (user.role?.name === "Ordonnateur") {
-      if (!user.ministereId) {
-        throw new Error('Utilisateur Ordonnateur non rattaché à un ministère');
-      }
-
-      const ministere = await prisma.ministere.findUnique({
-        where: { id: user.ministereId },
-        include: {
-          structures: {
-            orderBy: { name: 'asc' }
-          }
-        }
-      });
-
-      if (!ministere) {
-        throw new Error('Ministère introuvable');
-      }
-
-      return [ministere];
-    }
-
-    // Directeur : Accès à la structure à laquelle il est rattaché dans son ministère
-    if (user.role?.name === "Directeur" && user.structureId) {
-      const structure = await prisma.structure.findUnique({
-        where: { id: user.structureId },
-        include: { ministere: true }
-      });
-
-      if (!structure) {
-        throw new Error('Structure du directeur introuvable');
-      }
-
-      return [{
-        ...structure.ministere,
-        structures: [structure]
-      }];
-    }
-
-    // Rôles non reconnus ou utilisateurs sans permissions spéciales
-    console.warn('Rôle utilisateur non reconnu ou sans permissions spéciales pour userId:', userId);
-    return [];
+    // Si l'utilisateur n'a pas de ministère
+    throw new Error('Utilisateur non rattaché à un ministère');
   } catch (error) {
     console.error('Erreur lors de la récupération des structures utilisateur:', error);
     return [];
@@ -493,7 +369,6 @@ export async function getUserPermissionsInfo(userId: string) {
       where: { id: userId },
       include: {
         role: true,
-        structure: true,
         ministere: true
       }
     });
@@ -520,35 +395,19 @@ export async function getUserPermissionsInfo(userId: string) {
 
     switch (roleName) {
       case "Agent de saisie":
-        if (!user.structureId) {
+        if (!user.ministereId) {
           return {
             canCreate: false,
             canRead: false,
             scope: 'none',
-            message: 'Agent de saisie : Aucune structure assignée. Contactez un administrateur.'
+            message: 'Agent de saisie : Aucun ministère assigné. Contactez un administrateur.'
           };
         }
         return {
           canCreate: true,
           canRead: true,
-          scope: 'structure',
-          message: `Agent de saisie : Création/modification/suppression et lecture des catégories de votre structure (${user.structure?.name || 'Non assignée'})`
-        };
-
-      case "Directeur":
-        if (!user.structureId) {
-          return {
-            canCreate: false,
-            canRead: false,
-            scope: 'none',
-            message: 'Directeur : Aucune structure assignée. Contactez un administrateur.'
-          };
-        }
-        return {
-          canCreate: false,
-          canRead: true,
-          scope: 'structure',
-          message: `Directeur : Lecture seule des catégories de votre structure (${user.structure?.name || 'Non assignée'})`
+          scope: 'ministere',
+          message: `Agent de saisie : Création/modification/suppression et lecture des catégories de votre ministère (${user.ministere?.name || 'Non assigné'})`
         };
 
       case "Responsable Achats":
@@ -568,8 +427,6 @@ export async function getUserPermissionsInfo(userId: string) {
           message: `Responsable Achats : Création/modification/suppression et lecture des produits de votre ministère (${user.ministere?.name || 'Non assigné'})`
         };
 
-      case "Directeur Financier":
-      case "Directeur financier":
       case "Responsable Financier":
       case "Responsable financier":
       case "Ordonnateur":
@@ -618,9 +475,10 @@ export async function readCategory(structureId: string) {
     if (!structure) {
       throw new Error('Structure introuvable ou non rattachée au ministère');
     }
+    // Les catégories sont maintenant au niveau du ministère
     const category = await prisma.category.findMany({
       where: {
-        structureId: structureId
+        ministereId: structure.ministere.id
       },
     });
     return category;
@@ -712,7 +570,7 @@ export async function updateProduct(productId: string, formData: formDataType, u
     // Valider que la catégorie existe et appartient au même ministère
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
-      include: { structure: { include: { ministere: true } } }
+      include: { ministere: true }
     });
 
     if (!category) {
@@ -769,7 +627,6 @@ export async function canUserModifyProducts(userId: string, productStructureId?:
       where: { id: userId },
       include: {
         role: true,
-        structure: true,
         ministere: true
       }
     });
@@ -782,9 +639,17 @@ export async function canUserModifyProducts(userId: string, productStructureId?:
       return true;
     }
 
-    // Agent de saisie : peut modifier seulement dans sa structure
+    // Agent de saisie : peut modifier dans toutes les structures de son ministère
     if (user.role?.name === "Agent de saisie") {
-      return user.structureId === productStructureId;
+      if (!productStructureId) return true; // Pour les créations
+
+      // Vérifier que la structure du produit appartient au même ministère
+      const productStructure = await prisma.structure.findUnique({
+        where: { id: productStructureId },
+        select: { ministereId: true }
+      });
+
+      return productStructure?.ministereId === user.ministereId;
     }
 
     // Responsable Achats : peut modifier dans toutes les structures de son ministère
@@ -800,7 +665,7 @@ export async function canUserModifyProducts(userId: string, productStructureId?:
       return productStructure?.ministereId === user.ministereId;
     }
 
-    // Tous les autres rôles (Directeur Financier, Ordonnateur, Directeur) ne peuvent pas modifier
+    // Tous les autres rôles (Responsable Financier, Ordonnateur) ne peuvent pas modifier
     return false;
   } catch (error) {
     console.error('Erreur lors de la vérification des permissions:', error);
@@ -810,41 +675,32 @@ export async function canUserModifyProducts(userId: string, productStructureId?:
 
 export async function deleteProduct(id: string, structureId: string, userId?: string) {
   try {
-    if (!id || !structureId) {
-      throw new Error('L\'ID et la structure sont requis pour supprimer un produit');
+    if (!id) {
+      throw new Error('L\'ID est requis pour supprimer un produit');
+    }
+
+    // Vérifier d'abord si le produit existe
+    const existingProduct = await prisma.produit.findUnique({
+      where: { id: id }
+    });
+
+    if (!existingProduct) {
+      throw new Error('Produit non trouvé');
     }
 
     // Vérifier les permissions si userId est fourni
     if (userId) {
-      const canModify = await canUserModifyProducts(userId, structureId);
+      const canModify = await canUserModifyProducts(userId, existingProduct.structureId);
       if (!canModify) {
         throw new Error('Permissions insuffisantes pour supprimer ce produit');
       }
     }
 
-    const structure = await getMinistereAndStructure('', structureId);
-    if (!structure) {
-      throw new Error('Structure introuvable ou non rattachée au ministère');
-    }
-
-    // Vérifier d'abord si le produit existe
-    const existingProduct = await prisma.produit.findFirst({
-      where: {
-        id: id,
-        structureId: structureId
-      }
-    });
-
-    if (!existingProduct) {
-      throw new Error('Produit non trouvé ou n\'appartient pas à cette structure');
-    }
-
-    // Utiliser delete au lieu de deleteMany pour plus de précision
+    // Supprimer le produit
     const deletedProduct = await prisma.produit.delete({
-      where: {
-        id: id
-      },
+      where: { id: id }
     });
+    
     return deletedProduct;
   } catch (error) {
     console.error('Erreur lors de la suppression du produit:', error);
@@ -926,7 +782,6 @@ export async function getProductById(productId: string, userId?: string): Promis
         where: { id: userId },
         include: {
           role: true,
-          structure: true,
           ministere: true
         }
       });
@@ -937,18 +792,8 @@ export async function getProductById(productId: string, userId?: string): Promis
 
       // Admin peut voir tous les produits
       if (!user.isAdmin) {
-        // Agent de saisie et Directeur : seulement leur structure
-        if ((user.role?.name === "Agent de saisie" || user.role?.name === "Directeur") &&
-          user.structureId !== product.structureId) {
-          throw new Error('Permissions insuffisantes pour consulter ce produit');
-        }
-
-        // Responsable Achats, Directeur Financier, Ordonnateur : seulement leur ministère
-        if ((user.role?.name === "Responsable Achats" ||
-             user.role?.name === "Responsable achats" ||
-          user.role?.name === "Directeur Financier" ||
-          user.role?.name === "Ordonnateur") &&
-          user.ministereId !== product.ministereId) {
+        // Tous les utilisateurs : seulement leur ministère
+        if (user.ministereId !== product.ministereId) {
           throw new Error('Permissions insuffisantes pour consulter ce produit');
         }
       }
@@ -1009,31 +854,15 @@ export async function getAllProductsWithDetails(userId?: string): Promise<Produi
     // Déterminer le filtre selon le rôle de l'utilisateur
     let whereClause: any;
 
-    // Directeur : seulement sa propre structure
-    if (user.role?.name === "Directeur" && user.structureId) {
-      whereClause = { structureId: user.structureId };
-    }
-    // Agent de saisie : seulement sa propre structure
-    else if (user.role?.name === "Agent de saisie" && user.structureId) {
-      whereClause = { structureId: user.structureId };
-    }
-    // Responsable Achats, Directeur Financier, Ordonnateur : tout le ministère
-    else if (
-      (user.role?.name === "Responsable Achats" ||
-        user.role?.name === "Responsable achats" ||
-        user.role?.name === "Directeur Financier" ||
-        user.role?.name === "Directeur financier" ||
-        user.role?.name === "Responsable financier" ||
-        user.role?.name === "Ordonnateur") &&
-      user.ministereId
-    ) {
+    // Tous les utilisateurs : tout le ministère
+    if (user.ministereId) {
       whereClause = { 
         structure: {
           ministereId: user.ministereId
         }
       };
     }
-    // Si l'utilisateur n'a pas de rôle reconnu ou pas de rattachement
+    // Si l'utilisateur n'a pas de rattachement au ministère
     else {
       throw new Error('Permissions insuffisantes pour consulter les produits');
     }
@@ -1324,6 +1153,7 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
 
     // Déterminer les structures cibles
     let whereClause: { structureId?: string | { in: string[] } } = {};
+    let ministereIds: string[] = [];
 
     if (structureId && structureId.trim() !== '') {
       // Structure spécifique sélectionnée
@@ -1336,6 +1166,15 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
       }
 
       whereClause = { structureId: structureId };
+      
+      // Récupérer le ministère de cette structure pour les catégories
+      const structure = await prisma.structure.findUnique({
+        where: { id: structureId },
+        select: { ministereId: true }
+      });
+      if (structure) {
+        ministereIds = [structure.ministereId];
+      }
     } else {
       // "Toutes les structures" - récupérer les IDs de toutes les structures accessibles
       const accessibleStructureIds: string[] = [];
@@ -1345,6 +1184,8 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
             accessibleStructureIds.push(structure.id);
           });
         }
+        // Collecter aussi les IDs des ministères pour les catégories
+        ministereIds.push(ministere.id);
       });
 
       if (accessibleStructureIds.length === 0) {
@@ -1359,9 +1200,13 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
     }
 
     // Récupérer les statistiques des produits
-    // Calculer le nombre total de catégories (toutes distinctes)
+    // Calculer le nombre total de catégories (au niveau ministère)
     const totalCategories = await prisma.category.count({
-      where: whereClause
+      where: {
+        ministereId: {
+          in: ministereIds
+        }
+      }
     });
 
     const [
@@ -1456,13 +1301,18 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
       })
     );
 
-    // Calculer la valeur totale du stock
-    const stockValue = await prisma.produit.aggregate({
+    // Calculer la valeur totale du stock (prix × quantité pour chaque produit)
+    const products = await prisma.produit.findMany({
       where: whereClause,
-      _sum: {
-        price: true
+      select: {
+        price: true,
+        quantity: true
       }
     });
+    
+    const stockValue = products.reduce((total, product) => {
+      return total + (product.price * product.quantity);
+    }, 0);
 
     return {
       structure: structureInfo ? {
@@ -1488,7 +1338,7 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
         lowStockProducts,
         outOfStockProducts,
         totalTransactions: recentTransactions,
-        stockValue: stockValue._sum.price || 0
+        stockValue: stockValue
       },
       topProducts: topProductsDetails.filter(p => p.id), // Filtrer les produits valides
       alerts: {
@@ -1558,54 +1408,46 @@ export async function getProductCategoryDistribution(userId: string, structureId
     }
 
     // Récupérer la distribution des produits par catégorie
-    const categoryDistribution = await prisma.category.findMany({
+    // Note: Les catégories sont maintenant au niveau ministère, donc on passe par les produits
+    const productsWithCategories = await prisma.produit.findMany({
       where: whereClause,
-      include: {
-        _count: {
+      select: {
+        categoryId: true,
+        category: {
           select: {
-            produits: true
-          }
-        },
-        structure: {
-          select: {
+            id: true,
             name: true
           }
         }
-      },
-      orderBy: {
-        produits: {
-          _count: 'desc'
+      }
+    });
+
+    // Compter les produits par catégorie
+    const categoryCountMap = new Map<string, { name: string; count: number }>();
+    productsWithCategories.forEach(product => {
+      if (product.category) {
+        const existing = categoryCountMap.get(product.category.id);
+        if (existing) {
+          existing.count++;
+        } else {
+          categoryCountMap.set(product.category.id, {
+            name: product.category.name,
+            count: 1
+          });
         }
-      },
-      take: 10 // Prendre plus de catégories pour avoir du choix après traitement
+      }
     });
 
-    // Si "Toutes les structures", créer des noms distincts pour chaque structure
-    const processedCategories = categoryDistribution.map(category => {
-      const displayName = structureId && structureId.trim() !== ''
-        ? category.name
-        : `${category.name} (${category.structure.name})`;
-
-      return {
-        name: displayName,
-        pv: category._count.produits,
-        uv: category._count.produits * 2,
-        originalName: category.name,
-        structureName: category.structure.name,
-        count: category._count.produits
-      };
-    });
-
-    // Trier par nombre de produits et prendre les 5 premiers
-    const topCategories = processedCategories
+    // Convertir en tableau et trier
+    const categoryDistribution = Array.from(categoryCountMap.values())
       .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+      .slice(0, 5); // Prendre les 5 catégories avec le plus de produits
 
     // Transformer les données pour le graphique
-    const chartData = topCategories.map(category => ({
+    const chartData = categoryDistribution.map(category => ({
       name: category.name,
-      pv: category.pv,
-      uv: category.uv,
+      pv: category.count,
+      uv: category.count * 2,
     }));
 
     return chartData;
@@ -1678,25 +1520,32 @@ export async function getStockSummary(userId: string, structureId?: string): Pro
       }
     })
     
-    // Seuils de stock :
-    // - Stock faible : <= 5% de la quantité initiale
-    // - Stock d'alerte : <= 10% de la quantité initiale
+    // Seuils de stock cohérents :
+    // - Stock Normal : > 10% du stock initial
+    // - Stock d'Alerte : > 5% ET <= 10% du stock initial
+    // - Stock Faible : >= 1 unité ET <= 5% du stock initial
+    // - Rupture de Stock : 0 unité
     const lowStockThreshold = (initialQty: number) => Math.max(1, Math.ceil(initialQty * 0.05));
     const alertStockThreshold = (initialQty: number) => Math.max(2, Math.ceil(initialQty * 0.10));
     
     const inStock = allProducts.filter((p) => {
-      return p.quantity > alertStockThreshold(p.initialQuantity);
+      const threshold = alertStockThreshold(p.initialQuantity);
+      return p.quantity > threshold;
     });
     
     const alertStock = allProducts.filter((p) => {
       const lowThreshold = lowStockThreshold(p.initialQuantity);
       const alertThreshold = alertStockThreshold(p.initialQuantity);
+      // S'assurer que alertThreshold > lowThreshold pour éviter les catégories vides
+      if (alertThreshold <= lowThreshold) {
+        return false; // Si les seuils se chevauchent, le produit ira dans lowStock
+      }
       return p.quantity > lowThreshold && p.quantity <= alertThreshold;
     });
     
     const lowStock = allProducts.filter((p) => {
       const threshold = lowStockThreshold(p.initialQuantity);
-      return p.quantity > 0 && p.quantity <= threshold;
+      return p.quantity >= 1 && p.quantity <= threshold;
     });
     
     const outOfStock = allProducts.filter((p) => p.quantity === 0);
@@ -1744,9 +1593,18 @@ export async function getStructureStatistics(
       throw new Error('Structure non trouvée');
     }
 
-    // Définir les dates par défaut (dernier mois si non spécifiées)
-    const dateDebut = startDate || new Date(new Date().setMonth(new Date().getMonth() - 1));
-    const dateFin = endDate || new Date();
+    // Définir les dates par défaut (30 derniers jours si non spécifiées)
+    const now = new Date();
+    const dateDebut = startDate || (() => {
+      const d = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })();
+    const dateFin = endDate || (() => {
+      const d = new Date(now);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    })();
 
     // Filtres de période pour Prisma
     const dateFilter = {
@@ -1771,6 +1629,18 @@ export async function getStructureStatistics(
       }
     });
 
+    console.log(`📊 [getStructureStatistics] Structure: ${structureId}`);
+    console.log(`📅 Période: ${dateDebut.toISOString()} → ${dateFin.toISOString()}`);
+    console.log(`🔍 Alimentations trouvées: ${alimentations.length}`);
+    console.log(`📦 Détails alimentations:`, alimentations.map(a => ({
+      id: a.id,
+      numero: a.numero,
+      statut: a.statut,
+      quantite: a.quantite,
+      prixUnitaire: a.prixUnitaire,
+      createdAt: a.createdAt
+    })));
+
     // Récupérer tous les octrois de la période
     const octrois = await prisma.octroi.findMany({
       where: {
@@ -1785,6 +1655,8 @@ export async function getStructureStatistics(
         }
       }
     });
+
+    console.log(`🔍 Octrois trouvés: ${octrois.length}`);
 
     // Récupérer tous les produits de la structure
     const produits = await prisma.produit.findMany({
@@ -1899,9 +1771,19 @@ export async function getStructureStatistics(
     const totalQuantiteAlimentations = alimentations.reduce((sum, a) => sum + a.quantite, 0);
     const totalValeurAlimentations = alimentations.reduce((sum, a) => sum + (a.quantite * a.prixUnitaire), 0);
 
+    console.log(`📊 Calculs alimentations:`);
+    console.log(`  - Total: ${totalAlimentations}`);
+    console.log(`  - Quantité totale: ${totalQuantiteAlimentations}`);
+    console.log(`  - Valeur totale: ${totalValeurAlimentations} MRU`);
+
     const totalOctrois = octrois.length;
     const totalQuantiteOctrois = octrois.reduce((sum, o) => sum + o.quantite, 0);
     const totalValeurOctrois = statistiquesParProduit.reduce((sum, p) => sum + p.octrois.valeurTotaleMRU, 0);
+
+    console.log(`📊 Calculs octrois:`);
+    console.log(`  - Total: ${totalOctrois}`);
+    console.log(`  - Quantité totale: ${totalQuantiteOctrois}`);
+    console.log(`  - Valeur totale: ${totalValeurOctrois} MRU`);
 
     // Compter les produits ayant eu une activité
     const produitsDistincts = new Set([
@@ -2091,3 +1973,304 @@ export async function getStructureStatistics(
   }
 }
 
+/**
+ * Récupérer les statistiques agrégées de toutes les structures accessibles par l'utilisateur
+ */
+export async function getAllStructuresStatistics(
+  userId: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<StructureStatistics | null> {
+  try {
+    console.log('🚀 [getAllStructuresStatistics] Démarrage avec userId:', userId);
+    
+    // Récupérer l'utilisateur avec ses structures accessibles
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        ministere: true,
+        role: true
+      }
+    });
+
+    if (!user) {
+      console.error('❌ [getAllStructuresStatistics] Utilisateur non trouvé:', userId);
+      throw new Error('Utilisateur non trouvé');
+    }
+    
+    console.log('👤 [getAllStructuresStatistics] User trouvé:', {
+      id: user.id,
+      isAdmin: user.isAdmin,
+      ministereId: user.ministereId
+    });
+
+    // Définir les dates par défaut (30 derniers jours si non spécifiées)
+    const now = new Date();
+    const dateDebut = startDate || (() => {
+      const d = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })();
+    const dateFin = endDate || (() => {
+      const d = new Date(now);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    })();
+
+    // Filtres de période pour Prisma
+    const dateFilter = {
+      createdAt: {
+        gte: dateDebut,
+        lte: dateFin
+      }
+    };
+
+    // Déterminer quelles structures l'utilisateur peut voir
+    let structureIds: string[] = [];
+
+    if (user.isAdmin) {
+      // Admin voit toutes les structures
+      const allStructures = await prisma.structure.findMany({
+        select: { id: true }
+      });
+      structureIds = allStructures.map(s => s.id);
+    } else if (user.ministereId) {
+      // Utilisateur normal voit toutes les structures de son ministère
+      const ministereStructures = await prisma.structure.findMany({
+        where: { ministereId: user.ministereId },
+        select: { id: true }
+      });
+      structureIds = ministereStructures.map(s => s.id);
+    } else {
+      // Pas de structure accessible
+      return null;
+    }
+
+    console.log(`📊 [getAllStructuresStatistics] User: ${userId}`);
+    console.log(`📅 Période: ${dateDebut.toISOString()} → ${dateFin.toISOString()}`);
+    console.log(`🏢 Structures accessibles: ${structureIds.length}`);
+    console.log(`🔑 Structure IDs: ${structureIds.join(', ')}`);
+
+    // Récupérer toutes les alimentations de la période pour ces structures
+    const alimentations = await prisma.alimentation.findMany({
+      where: {
+        structureId: { in: structureIds },
+        ...dateFilter
+      },
+      include: {
+        produit: {
+          include: {
+            category: true
+          }
+        }
+      }
+    });
+
+    console.log(`🔍 Alimentations trouvées: ${alimentations.length}`);
+
+    // Récupérer tous les octrois de la période pour ces structures
+    const octrois = await prisma.octroi.findMany({
+      where: {
+        structureId: { in: structureIds },
+        ...dateFilter
+      },
+      include: {
+        produit: {
+          include: {
+            category: true
+          }
+        }
+      }
+    });
+
+    console.log(`🔍 Octrois trouvés: ${octrois.length}`);
+
+    // Calculer les statistiques globales
+    const totalAlimentations = alimentations.length;
+    const totalQuantiteAlimentations = alimentations.reduce((sum, a) => sum + a.quantite, 0);
+    const totalValeurAlimentations = alimentations.reduce((sum, a) => sum + (a.quantite * a.prixUnitaire), 0);
+
+    console.log(`📊 Calculs alimentations:`);
+    console.log(`  - Total: ${totalAlimentations}`);
+    console.log(`  - Quantité totale: ${totalQuantiteAlimentations}`);
+    console.log(`  - Valeur totale: ${totalValeurAlimentations} MRU`);
+
+    const totalOctrois = octrois.length;
+    const totalQuantiteOctrois = octrois.reduce((sum, o) => sum + o.quantite, 0);
+
+    // Pour calculer la valeur des octrois, utiliser le prix moyen des alimentations par produit
+    const prixMoyenParProduit = new Map<string, number>();
+    alimentations.forEach(a => {
+      if (!prixMoyenParProduit.has(a.produitId)) {
+        prixMoyenParProduit.set(a.produitId, 0);
+      }
+    });
+
+    // Calculer prix moyen par produit
+    const quantiteParProduit = new Map<string, number>();
+    const valeurParProduit = new Map<string, number>();
+
+    alimentations.forEach(a => {
+      const currentQty = quantiteParProduit.get(a.produitId) || 0;
+      const currentVal = valeurParProduit.get(a.produitId) || 0;
+      quantiteParProduit.set(a.produitId, currentQty + a.quantite);
+      valeurParProduit.set(a.produitId, currentVal + (a.quantite * a.prixUnitaire));
+    });
+
+    prixMoyenParProduit.forEach((_, produitId) => {
+      const qty = quantiteParProduit.get(produitId) || 0;
+      const val = valeurParProduit.get(produitId) || 0;
+      if (qty > 0) {
+        prixMoyenParProduit.set(produitId, val / qty);
+      }
+    });
+
+    // Calculer valeur totale des octrois
+    const totalValeurOctrois = octrois.reduce((sum, o) => {
+      const prixMoyen = prixMoyenParProduit.get(o.produitId) || 0;
+      return sum + (o.quantite * prixMoyen);
+    }, 0);
+
+    console.log(`📊 Calculs octrois:`);
+    console.log(`  - Total: ${totalOctrois}`);
+    console.log(`  - Quantité totale: ${totalQuantiteOctrois}`);
+    console.log(`  - Valeur totale: ${totalValeurOctrois} MRU`);
+
+    // Compter les produits ayant eu une activité
+    const produitsDistincts = new Set([
+      ...alimentations.map(a => a.produitId),
+      ...octrois.map(o => o.produitId)
+    ]).size;
+
+    // Statuts workflow
+    const alimentationsEnAttente = alimentations.filter(a => 
+      !['VALIDE_ORDONNATEUR', 'REJETE'].includes(a.statut)
+    ).length;
+    const alimentationsValidees = alimentations.filter(a => a.statut === 'VALIDE_ORDONNATEUR').length;
+    const alimentationsRejetees = alimentations.filter(a => a.statut === 'REJETE').length;
+
+    const octroiEnAttente = octrois.filter(o => 
+      !['VALIDE_ORDONNATEUR', 'REJETE'].includes(o.statut)
+    ).length;
+    const octroiValides = octrois.filter(o => o.statut === 'VALIDE_ORDONNATEUR').length;
+    const octroiRejetes = octrois.filter(o => o.statut === 'REJETE').length;
+
+    // Créer un map pour agréger par produit
+    const produitsMap = new Map<string, {
+      produitName: string;
+      produitUnit: string;
+      categoryName: string;
+      alimentations: typeof alimentations;
+      octrois: typeof octrois;
+    }>();
+
+    alimentations.forEach(a => {
+      if (!produitsMap.has(a.produitId)) {
+        produitsMap.set(a.produitId, {
+          produitName: a.produit.name,
+          produitUnit: a.produit.unit,
+          categoryName: a.produit.category.name,
+          alimentations: [],
+          octrois: []
+        });
+      }
+      produitsMap.get(a.produitId)!.alimentations.push(a);
+    });
+
+    octrois.forEach(o => {
+      if (!produitsMap.has(o.produitId)) {
+        produitsMap.set(o.produitId, {
+          produitName: o.produit.name,
+          produitUnit: o.produit.unit,
+          categoryName: o.produit.category.name,
+          alimentations: [],
+          octrois: []
+        });
+      }
+      produitsMap.get(o.produitId)!.octrois.push(o);
+    });
+
+    // Top produits
+    const topProduits = Array.from(produitsMap.entries()).map(([produitId, data]) => {
+      const quantiteTotale = data.alimentations.reduce((sum, a) => sum + a.quantite, 0);
+      const valeurTotaleMRU = data.alimentations.reduce((sum, a) => sum + (a.quantite * a.prixUnitaire), 0);
+      
+      return {
+        produitId,
+        produitName: data.produitName,
+        produitUnit: data.produitUnit,
+        categoryName: data.categoryName,
+        imageUrl: '',
+        alimentations: {
+          count: data.alimentations.length,
+          quantiteTotale,
+          valeurTotaleMRU,
+          prixMoyenUnitaire: quantiteTotale > 0 ? valeurTotaleMRU / quantiteTotale : 0,
+          dernierPrixUnitaire: null,
+          derniereAlimentationDate: null
+        },
+        octrois: {
+          count: data.octrois.length,
+          quantiteTotale: data.octrois.reduce((sum, o) => sum + o.quantite, 0),
+          valeurTotaleMRU: 0,
+          dernierOctroiDate: null
+        },
+        stock: {
+          actuel: 0,
+          initial: 0,
+          tauxUtilisation: 0,
+          tauxRotation: 0
+        }
+      };
+    });
+
+    const topPlusAlimentes = [...topProduits]
+      .sort((a, b) => b.alimentations.quantiteTotale - a.alimentations.quantiteTotale)
+      .slice(0, 5);
+
+    const topPlusOctroyes = [...topProduits]
+      .sort((a, b) => b.octrois.quantiteTotale - a.octrois.quantiteTotale)
+      .slice(0, 5);
+
+    const topPlusValeur = [...topProduits]
+      .sort((a, b) => b.alimentations.valeurTotaleMRU - a.alimentations.valeurTotaleMRU)
+      .slice(0, 5);
+
+    return {
+      structureId: 'all',
+      structureName: 'Toutes les structures accessibles',
+      ministereId: 'all',
+      ministereName: 'Tous les ministères',
+      periode: {
+        debut: dateDebut,
+        fin: dateFin
+      },
+      overview: {
+        totalAlimentations,
+        quantiteTotaleAlimentations: totalQuantiteAlimentations,
+        valeurTotaleAlimentationsMRU: Math.round(totalValeurAlimentations * 100) / 100,
+        totalOctrois,
+        quantiteTotaleOctrois: totalQuantiteOctrois,
+        valeurTotaleOctroisMRU: Math.round(totalValeurOctrois * 100) / 100,
+        produitsDistincts,
+        alimentationsEnAttente,
+        alimentationsValidees,
+        alimentationsRejetees,
+        octroiEnAttente,
+        octroiValides,
+        octroiRejetes
+      },
+      parProduit: topProduits,
+      topProduits: {
+        plusAlimentes: topPlusAlimentes,
+        plusOctroyes: topPlusOctroyes,
+        plusValeurAlimentations: topPlusValeur
+      },
+      alimentationsParProduitStructure: []
+    };
+
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques agrégées:', error);
+    return null;
+  }
+}

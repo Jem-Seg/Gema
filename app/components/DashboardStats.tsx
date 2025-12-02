@@ -15,7 +15,12 @@ export default function DashboardStats({ structureId }: DashboardStatsProps) {
 
   useEffect(() => {
     const loadStats = async () => {
-      if (!structureId) {
+      console.log('📊 [DashboardStats] structureId reçu:', structureId);
+      
+      // structureId peut être undefined (pas encore chargé) ou "" (toutes les structures)
+      // On attend que structureId soit défini (string, même vide)
+      if (structureId === undefined) {
+        console.log('⏸️ [DashboardStats] structureId undefined, en attente...');
         setLoading(false);
         return;
       }
@@ -24,18 +29,30 @@ export default function DashboardStats({ structureId }: DashboardStatsProps) {
         setLoading(true);
         setError(null);
 
-        // Derniers 30 jours par défaut
-        const endDate = new Date().toISOString().split('T')[0];
-        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // Derniers 30 jours par défaut (inclut le jour actuel jusqu'à 23:59:59.999)
+        const now = new Date();
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        const endDate = endOfDay.toISOString();
+        const startOfPeriod = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+        startOfPeriod.setHours(0, 0, 0, 0);
+        const startDate = startOfPeriod.toISOString();
 
-        const url = `/api/structures/${structureId}/statistics?startDate=${startDate}&endDate=${endDate}`;
-        const response = await fetch(url);
+        // Si structureId est vide, l'API retournera les stats agrégées
+        const url = `/api/structures/${structureId || 'all'}/statistics?startDate=${startDate}&endDate=${endDate}`;
+        console.log('🌐 [DashboardStats] Appel API:', url);
+        
+        const response = await fetch(url, {
+          cache: 'no-store' // Désactiver le cache pour obtenir des données fraîches
+        });
 
         if (!response.ok) {
-          throw new Error('Erreur lors de la récupération des statistiques');
+          const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+          console.error('❌ [DashboardStats] Erreur API:', response.status, errorData);
+          throw new Error(`Erreur lors de la récupération des statistiques: ${JSON.stringify(errorData)}`);
         }
 
         const data = await response.json();
+        console.log('✅ [DashboardStats] Données reçues:', data);
         setStatistics(data);
       } catch (err) {
         console.error('Erreur chargement stats dashboard:', err);
@@ -46,6 +63,18 @@ export default function DashboardStats({ structureId }: DashboardStatsProps) {
     };
 
     loadStats();
+
+    // Écouter les événements de mise à jour du stock
+    const handleStockUpdate = () => {
+      console.log('🔄 [DashboardStats] Événement stockUpdated reçu, rechargement...');
+      loadStats();
+    };
+
+    window.addEventListener('stockUpdated', handleStockUpdate);
+
+    return () => {
+      window.removeEventListener('stockUpdated', handleStockUpdate);
+    };
   }, [structureId]);
 
   if (loading) {

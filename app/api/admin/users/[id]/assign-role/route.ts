@@ -15,7 +15,7 @@ export async function POST(
     
     // Récupérer les données de la requête
     const body = await request.json();
-    const { roleId, ministereId, structureId } = body;
+    const { roleId, ministereId } = body;
     
     // Vérifier que l'utilisateur existe
     const user = await prisma.user.findUnique({
@@ -42,13 +42,8 @@ export async function POST(
         );
       }
       
-      // Vérifier si le rôle nécessite une structure
-      if (role.requiresStructure && (!structureId || structureId === '')) {
-        return NextResponse.json(
-          { error: 'Ce rôle nécessite une structure' },
-          { status: 400 }
-        );
-      }
+      // Dans le workflow simplifié, les utilisateurs ne sont pas assignés à une structure
+      // Tous les utilisateurs travaillent au niveau ministère
     }
     
     // Vérifier que le ministère existe si fourni
@@ -65,32 +60,16 @@ export async function POST(
       }
     }
     
-    // Vérifier que la structure existe si fournie
-    if (structureId && structureId !== '') {
-      const structure = await prisma.structure.findUnique({
-        where: { id: structureId },
-      });
-      
-      if (!structure) {
-        return NextResponse.json(
-          { error: 'Structure non trouvée' },
-          { status: 404 }
-        );
-      }
-    }
-    
     // Mettre à jour l'utilisateur
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         roleId: roleId && roleId !== '' ? roleId : null,
         ministereId: ministereId && ministereId !== '' ? ministereId : null,
-        structureId: structureId && structureId !== '' ? structureId : null,
       },
       include: {
         role: true,
         ministere: true,
-        structure: true,
       },
     });
     

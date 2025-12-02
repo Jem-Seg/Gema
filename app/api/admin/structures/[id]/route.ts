@@ -128,14 +128,7 @@ export async function DELETE(
 
     // Vérifier que la structure existe
     const existingStructure = await prisma.structure.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: {
-            users: true
-          }
-        }
-      }
+      where: { id }
     });
 
     if (!existingStructure) {
@@ -145,15 +138,7 @@ export async function DELETE(
       );
     }
 
-    // Vérifier qu'il n'y a pas d'utilisateurs associés
-    if (existingStructure._count.users > 0) {
-      return NextResponse.json(
-        { error: 'Impossible de supprimer une structure qui a des utilisateurs associés' },
-        { status: 400 }
-      );
-    }
-
-    // Supprimer la structure
+    // Supprimer la structure (plus de vérification utilisateur car plus de relation)
     await prisma.structure.delete({
       where: { id }
     });

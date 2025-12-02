@@ -13,7 +13,6 @@ export async function GET() {
       include: {
         role: true,
         ministere: true,
-        structure: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -63,7 +62,6 @@ export async function POST(request: NextRequest) {
       name,
       roleId,
       ministereId,
-      structureId,
       isAdmin = false,
       isApproved = true,
       password = 'Password123!' // Mot de passe par défaut
@@ -95,12 +93,8 @@ export async function POST(request: NextRequest) {
         where: { id: roleId },
       });
 
-      if (role?.requiresStructure && !structureId) {
-        return NextResponse.json(
-          { error: 'Ce rôle nécessite la sélection d\'une structure' },
-          { status: 400 }
-        );
-      }
+      // Dans le workflow simplifié, les utilisateurs ne sont pas assignés à une structure
+      // Tous les utilisateurs travaillent au niveau ministère
     }
 
     // Hasher le mot de passe
@@ -117,12 +111,10 @@ export async function POST(request: NextRequest) {
         isApproved,
         roleId: roleId || null,
         ministereId: ministereId || null,
-        structureId: structureId || null,
       },
       include: {
         role: true,
         ministere: true,
-        structure: true,
       },
     });
 

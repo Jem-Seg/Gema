@@ -27,26 +27,18 @@ export async function GET() {
       // Admin : toutes les catégories
       categories = await prisma.category.findMany({
         include: {
-          structure: {
-            include: {
-              ministere: true
-            }
-          }
+          ministere: true
         },
         orderBy: { name: 'asc' }
       });
-    } else if (dbUser.role?.name === "Agent de saisie" && dbUser.structureId) {
-      // Agent de saisie : seulement sa structure
+    } else if (dbUser.role?.name === "Agent de saisie" && dbUser.ministereId) {
+      // Agent de saisie voit toutes les catégories de son ministère
       categories = await prisma.category.findMany({
         where: {
-          structureId: dbUser.structureId
+          ministereId: dbUser.ministereId
         },
         include: {
-          structure: {
-            include: {
-              ministere: true
-            }
-          }
+          ministere: true
         },
         orderBy: { name: 'asc' }
       });
@@ -64,11 +56,7 @@ export async function GET() {
           ministereId: dbUser.ministereId
         },
         include: {
-          structure: {
-            include: {
-              ministere: true
-            }
-          }
+          ministere: true
         },
         orderBy: { name: 'asc' }
       });

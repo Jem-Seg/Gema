@@ -23,11 +23,6 @@ export async function GET() {
             name: true,
             abreviation: true
           }
-        },
-        _count: {
-          select: {
-            users: true
-          }
         }
       },
       orderBy: [

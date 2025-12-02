@@ -58,7 +58,6 @@ export async function POST(
       include: {
         role: true,
         ministere: true,
-        structure: true,
       },
     });
 

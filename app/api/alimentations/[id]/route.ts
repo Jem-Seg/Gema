@@ -22,12 +22,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Utilisateur non approuvé' }, { status: 403 });
     }
 
-    // Vérifier que l'utilisateur est Responsable achats ou Admin
-    const allowedRoles = ['Responsable Achats', 'Responsable achats'];
+    // Vérifier que l'utilisateur est Agent de saisie, Responsable achats ou Admin
+    const allowedRoles = ['Agent de saisie', 'Responsable Achats', 'Responsable achats'];
     const isAdmin = dbUser.isAdmin;
+    const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
+    const isRespAchats = dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats';
+    
     if (!allowedRoles.includes(dbUser.role?.name || '') && !isAdmin) {
       return NextResponse.json(
-        { success: false, message: 'Seul le Responsable achats ou un administrateur peut modifier des alimentations' },
+        { success: false, message: 'Seuls l\'Agent de saisie, le Responsable achats ou un administrateur peuvent modifier des alimentations' },
         { status: 403 }
       );
     }
@@ -71,17 +74,96 @@ export async function PUT(
       );
     }
 
-    // Vérifier que le statut permet la modification
-    // Responsable achats : SAISIE ou INSTANCE_FINANCIER uniquement
-    // Admin : SAISIE, INSTANCE_FINANCIER ou REJETE
-    const editableStatuses = isAdmin 
-      ? ['SAISIE', 'INSTANCE_FINANCIER', 'REJETE']
-      : ['SAISIE', 'INSTANCE_FINANCIER'];
-    if (!editableStatuses.includes(alimentation.statut)) {
-      return NextResponse.json(
-        { success: false, message: 'Impossible de modifier une alimentation qui a déjà été validée' },
-        { status: 400 }
-      );
+    // Vérifier que le statut permet la modification selon le rôle
+    // EN_ATTENTE : Agent de saisie ET Responsable achats peuvent modifier
+    // EN_INSTANCE_ACHATS : Agent de saisie ET Responsable achats peuvent modifier
+    // VALIDE_ACHATS : Seul Responsable achats peut modifier
+    // EN_INSTANCE_FINANCIER : Agent de saisie (→ EN_INSTANCE_ACHATS) ET Responsable achats peuvent modifier
+    // MIS_EN_INSTANCE : Agent de saisie (→ EN_INSTANCE_ACHATS) ET Responsable achats (→ VALIDE_ACHATS) peuvent modifier
+    // REJETE : Agent de saisie (→ EN_INSTANCE_ACHATS) ET Responsable achats (→ VALIDE_ACHATS) peuvent modifier
+    // Admin peut tout modifier sauf VALIDE_ORDONNATEUR
+    
+    let nouveauStatut = alimentation.statut; // Par défaut, le statut reste inchangé
+    
+    if (!isAdmin) {
+      if (alimentation.statut === 'EN_ATTENTE' || alimentation.statut === 'EN_INSTANCE_ACHATS') {
+        // Agent de saisie ET Responsable achats peuvent modifier
+        if (!isAgentSaisie && !isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Vous n\'avez pas les permissions pour modifier cette alimentation' },
+            { status: 403 }
+          );
+        }
+      } else if (alimentation.statut === 'VALIDE_ACHATS') {
+        // Seul Responsable achats peut modifier
+        if (!isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Seul le Responsable achats peut modifier une alimentation avec ce statut' },
+            { status: 403 }
+          );
+        }
+      } else if (alimentation.statut === 'EN_INSTANCE_FINANCIER') {
+        // Agent de saisie ET Responsable achats peuvent modifier
+        if (!isAgentSaisie && !isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Vous n\'avez pas les permissions pour modifier cette alimentation' },
+            { status: 403 }
+          );
+        }
+        // Si modifié par Agent de saisie, retourne au Responsable achats (EN_INSTANCE_ACHATS)
+        // Si modifié par Responsable achats, reste ou devient VALIDE_ACHATS
+        if (isAgentSaisie) {
+          nouveauStatut = 'EN_INSTANCE_ACHATS';
+        }
+      } else if (alimentation.statut === 'MIS_EN_INSTANCE') {
+        // Agent de saisie ET Responsable achats peuvent modifier une alimentation renvoyée par l'ordonnateur
+        if (!isAgentSaisie && !isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Vous n\'avez pas les permissions pour modifier cette alimentation' },
+            { status: 403 }
+          );
+        }
+        // Si modifié par Agent de saisie, retourne au Responsable achats (EN_INSTANCE_ACHATS)
+        // Si modifié par Responsable achats, retourne au Responsable Financier (VALIDE_ACHATS)
+        if (isAgentSaisie) {
+          nouveauStatut = 'EN_INSTANCE_ACHATS';
+        } else if (isRespAchats) {
+          nouveauStatut = 'VALIDE_ACHATS';
+        }
+      } else if (alimentation.statut === 'REJETE') {
+        // Agent de saisie ET Responsable achats peuvent modifier une alimentation rejetée
+        if (!isAgentSaisie && !isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Vous n\'avez pas les permissions pour modifier cette alimentation' },
+            { status: 403 }
+          );
+        }
+        // Si modifié par Agent de saisie, retourne au Responsable achats (EN_INSTANCE_ACHATS)
+        // Si modifié par Responsable achats, retourne au Responsable Financier (VALIDE_ACHATS)
+        if (isAgentSaisie) {
+          nouveauStatut = 'EN_INSTANCE_ACHATS';
+        } else if (isRespAchats) {
+          nouveauStatut = 'VALIDE_ACHATS';
+        }
+      } else {
+        // Autres statuts : non modifiable
+        return NextResponse.json(
+          { success: false, message: 'Impossible de modifier une alimentation avec ce statut' },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Admin ne peut pas modifier les alimentations validées par l'ordonnateur
+      if (alimentation.statut === 'VALIDE_ORDONNATEUR') {
+        return NextResponse.json(
+          { success: false, message: 'Impossible de modifier une alimentation validée par l\'ordonnateur' },
+          { status: 400 }
+        );
+      }
+      // Admin modifiant une alimentation REJETE ou EN_INSTANCE_ORDONNATEUR la renvoie aussi en EN_INSTANCE_FINANCIER
+      if (alimentation.statut === 'REJETE' || alimentation.statut === 'EN_INSTANCE_ORDONNATEUR') {
+        nouveauStatut = 'EN_INSTANCE_FINANCIER';
+      }
     }
 
     // Vérifier que l'alimentation n'est pas verrouillée
@@ -92,7 +174,7 @@ export async function PUT(
       );
     }
 
-    // Mettre à jour l'alimentation et remettre en INSTANCE_FINANCIER
+    // Mettre à jour l'alimentation
     const updatedAlimentation = await prisma.alimentation.update({
       where: { id },
       data: {
@@ -100,7 +182,7 @@ export async function PUT(
         prixUnitaire: parseFloat(prixUnitaire),
         fournisseurNom,
         fournisseurNIF: fournisseurNIF || null,
-        statut: 'INSTANCE_FINANCIER' // Remettre en instance après modification
+        statut: nouveauStatut // Changement automatique si REJETE → EN_INSTANCE_FINANCIER
       },
       include: {
         produit: true,
@@ -120,10 +202,14 @@ export async function PUT(
         entityId: id,
         action: 'MODIFIE',
         ancienStatut: alimentation.statut,
-        nouveauStatut: 'INSTANCE_FINANCIER',
+        nouveauStatut: nouveauStatut,
         userId: dbUser.id,
         userRole: dbUser.role?.name || 'Inconnu',
-        observations: `Modification: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom}`
+        observations: alimentation.statut === 'REJETE' 
+          ? `Modification après rejet: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom} - Renvoi au Responsable Financier`
+          : alimentation.statut === 'EN_INSTANCE_ORDONNATEUR'
+          ? `Modification après correction ordonnateur: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom} - Renvoi au Responsable Financier`
+          : `Modification: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom}`
       }
     });
 
@@ -161,13 +247,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Utilisateur non approuvé' }, { status: 403 });
     }
 
-    // Vérifier que l'utilisateur est Responsable achats ou Admin
-    const allowedRoles = ['Responsable Achats', 'Responsable achats'];
+    // Vérifier que l'utilisateur est Agent de saisie, Responsable achats ou Admin
+    const allowedRoles = ['Agent de saisie', 'Responsable Achats', 'Responsable achats'];
     const isAdmin = dbUser.isAdmin;
+    const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
+    const isRespAchats = dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats';
     
     if (!allowedRoles.includes(dbUser.role?.name || '') && !isAdmin) {
       return NextResponse.json(
-        { success: false, message: 'Seul le Responsable achats ou un administrateur peut supprimer des alimentations' },
+        { success: false, message: 'Seuls l\'Agent de saisie, le Responsable achats ou un administrateur peuvent supprimer des alimentations' },
         { status: 403 }
       );
     }
@@ -194,13 +282,52 @@ export async function DELETE(
       );
     }
 
-    // Pour les non-admins, vérifier que le statut permet la suppression
+    // Pour les non-admins, vérifier que le statut et le rôle permettent la suppression
     if (!isAdmin) {
-      const deletableStatuses = ['SAISIE', 'INSTANCE_FINANCIER', 'REJETE'];
-      if (!deletableStatuses.includes(alimentation.statut)) {
+      if (alimentation.statut === 'EN_ATTENTE' || alimentation.statut === 'EN_INSTANCE_ACHATS') {
+        // Agent de saisie ET Responsable achats peuvent supprimer
+        if (!isAgentSaisie && !isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Vous n\'avez pas les permissions pour supprimer cette alimentation' },
+            { status: 403 }
+          );
+        }
+      } else if (alimentation.statut === 'EN_INSTANCE_FINANCIER' || alimentation.statut === 'MIS_EN_INSTANCE' || alimentation.statut === 'REJETE') {
+        // Agent de saisie ET Responsable achats peuvent supprimer
+        if (!isAgentSaisie && !isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Vous n\'avez pas les permissions pour supprimer cette alimentation' },
+            { status: 403 }
+          );
+        }
+      } else if (alimentation.statut === 'EN_INSTANCE_ORDONNATEUR') {
+        // Seul Responsable achats peut supprimer
+        if (!isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Seul le Responsable achats peut supprimer une alimentation avec ce statut' },
+            { status: 403 }
+          );
+        }
+      } else if (alimentation.statut === 'VALIDE_ORDONNATEUR') {
         return NextResponse.json(
-          { success: false, message: 'Impossible de supprimer une alimentation qui a déjà été validée' },
-          { status: 400 }
+          { success: false, message: 'Impossible de supprimer une alimentation validée par l\'ordonnateur' },
+          { status: 403 }
+        );
+      } else {
+        // Autres statuts : supprimable par Responsable achats
+        if (!isRespAchats) {
+          return NextResponse.json(
+            { success: false, message: 'Seul le Responsable achats peut supprimer une alimentation avec ce statut' },
+            { status: 403 }
+          );
+        }
+      }
+    } else {
+      // Admin ne peut pas supprimer les alimentations validées par l'ordonnateur sauf si force
+      if (alimentation.statut === 'VALIDE_ORDONNATEUR') {
+        return NextResponse.json(
+          { success: false, message: 'Seul un administrateur avec permissions spéciales peut supprimer une alimentation validée par l\'ordonnateur' },
+          { status: 403 }
         );
       }
     }

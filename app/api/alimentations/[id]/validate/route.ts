@@ -33,6 +33,8 @@ export async function POST(
 
     // Vérifier que l'utilisateur a un rôle autorisé
     const authorizedRoles = [
+      'Responsable Achats',
+      'Responsable achats',
       'Directeur Financier',
       'Directeur financier',
       'Responsable financier',

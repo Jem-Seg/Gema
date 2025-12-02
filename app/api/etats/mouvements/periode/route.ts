@@ -22,11 +22,6 @@ export async function GET(request: NextRequest) {
       where: { id: session.user.id as string },
       include: { 
         role: true,
-        structure: {
-          include: {
-            ministere: true,
-          },
-        },
         ministere: true,
       },
     });
@@ -45,9 +40,6 @@ export async function GET(request: NextRequest) {
     } else if (ministereId) {
       whereAlim.ministereId = ministereId;
       whereOctroi.ministereId = ministereId;
-    } else if (user.structureId) {
-      whereAlim.structureId = user.structureId;
-      whereOctroi.structureId = user.structureId;
     } else if (user.ministereId) {
       whereAlim.ministereId = user.ministereId;
       whereOctroi.ministereId = user.ministereId;
@@ -76,9 +68,6 @@ export async function GET(request: NextRequest) {
         entete.ministere = ministere.name;
         entete.structure = 'Toutes les structures';
       }
-    } else if (user.structure) {
-      entete.ministere = user.structure.ministere.name;
-      entete.structure = user.structure.name;
     } else if (user.ministere) {
       entete.ministere = user.ministere.name;
       entete.structure = 'Toutes les structures';

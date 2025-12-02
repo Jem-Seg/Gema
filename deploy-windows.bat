@@ -48,8 +48,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [7/7] Creation dossier logs...
+echo [7/7] Creation dossiers necessaires...
 if not exist logs mkdir logs
+if not exist C:\gestock\uploads mkdir C:\gestock\uploads
+echo Dossier uploads cree: C:\gestock\uploads
 
 echo.
 echo ========================================

@@ -27,26 +27,7 @@ export async function GET(request: NextRequest) {
     } else if (ministereIdParam) {
       whereClause.ministereId = ministereIdParam;
     } else {
-    // Sinon, filtrer les produits selon le rôle
-    if (dbUser.role?.name === 'Agent de saisie' || dbUser.role?.name === 'Directeur') {
-      // Uniquement les produits de leur structure
-      if (!dbUser.structureId) {
-        return NextResponse.json(
-          { success: false, message: 'Structure non définie' },
-          { status: 400 }
-        );
-      }
-      whereClause.structureId = dbUser.structureId;
-    } else if (
-      dbUser.role?.name === 'Responsable Achats' ||
-      dbUser.role?.name === 'Responsable achats' ||
-      dbUser.role?.name === 'Directeur Financier' ||
-      dbUser.role?.name === 'Directeur financier' ||
-      dbUser.role?.name === 'Responsable financier' ||
-      dbUser.role?.name === 'Responsable Financier' ||
-      dbUser.role?.name === 'Ordonnateur'
-    ) {
-      // Tous les produits de leur ministère
+      // Sinon, filtrer les produits selon le rôle - tous les utilisateurs voient leur ministère
       if (!dbUser.ministereId) {
         return NextResponse.json(
           { success: false, message: 'Ministère non défini' },
@@ -54,15 +35,6 @@ export async function GET(request: NextRequest) {
         );
       }
       whereClause.ministereId = dbUser.ministereId;
-    } else if (dbUser.isAdmin) {
-      // Admins peuvent voir tous les produits
-      whereClause = {};
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'Rôle non reconnu' },
-        { status: 403 }
-      );
-    }
     }
 
     const produits = await prisma.produit.findMany({

@@ -24,8 +24,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           where: { email: credentials.email as string },
           include: {
             role: true,
-            ministere: true,
-            structure: true
+            ministere: true
           }
         })
 
@@ -50,8 +49,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           isAdmin: user.isAdmin,
           isApproved: user.isApproved,
           roleId: user.roleId,
-          ministereId: user.ministereId,
-          structureId: user.structureId
+          ministereId: user.ministereId
         }
       }
     })
@@ -73,7 +71,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.isApproved = (user as any).isApproved
         token.roleId = (user as any).roleId
         token.ministereId = (user as any).ministereId
-        token.structureId = (user as any).structureId
         token.lastRefresh = Date.now()
       }
       
@@ -88,8 +85,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               isAdmin: true,
               isApproved: true,
               roleId: true,
-              ministereId: true,
-              structureId: true
+              ministereId: true
             }
           })
           
@@ -98,7 +94,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.isApproved = dbUser.isApproved
             token.roleId = dbUser.roleId
             token.ministereId = dbUser.ministereId
-            token.structureId = dbUser.structureId
             token.lastRefresh = Date.now()
           }
         } catch (error) {
@@ -115,7 +110,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).isApproved = token.isApproved as boolean
         (session.user as any).roleId = token.roleId as string | null
         (session.user as any).ministereId = token.ministereId as string | null
-        (session.user as any).structureId = token.structureId as string | null
       }
       return session
     }
@@ -169,8 +163,7 @@ export async function getUserFromDatabase(userId: string) {
       where: { id: userId },
       include: {
         role: true,
-        ministere: true,
-        structure: true
+        ministere: true
       }
     })
     

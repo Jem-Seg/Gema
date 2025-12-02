@@ -77,7 +77,14 @@ const AlimentationsPage = () => {
   // État pour le filtrage par statut
   const [statusFilter, setStatusFilter] = useState<string>('TOUS');
 
+  // États pour le filtrage par date
+  const [dateFilter, setDateFilter] = useState<string>('TOUS');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
 
+  // États pour la pagination
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Charger les alimentations
   const loadAlimentations = useCallback(async () => {
@@ -213,11 +220,26 @@ const AlimentationsPage = () => {
 
   // Ouvrir le modal d'action
   const openActionModal = (alimentation: Alimentation, action: 'instance' | 'validate' | 'reject' | 'delete' | 'maintenir-instance') => {
-    // Le Responsable Achats ne peut pas accéder aux actions de workflow
-    const isResponsableAchats = userRole === 'Responsable Achats' || userRole === 'Responsable achats';
-    if (isResponsableAchats && action !== 'delete') {
-      toast.error('Cette action n\'est pas autorisée pour votre rôle');
-      return;
+    // La suppression est vérifiée par canEditOrDelete(), pas par getAvailableActions()
+    if (action !== 'delete') {
+      // Vérifier si l'action est autorisée pour le statut actuel et le rôle
+      const availableActions = getAvailableActions(alimentation);
+      if (!availableActions.includes(action)) {
+        const statusMessages: Record<string, string> = {
+          'EN_ATTENTE': 'en attente de validation',
+          'EN_INSTANCE_ACHATS': 'en instance (Achats)',
+          'VALIDE_ACHATS': 'validée par le Responsable Achats',
+          'EN_INSTANCE_FINANCIER': 'en instance (Financier)',
+          'EN_INSTANCE_ORDONNATEUR': 'en traitement par l\'Ordonnateur',
+          'MIS_EN_INSTANCE': 'renvoyée par l\'Ordonnateur',
+          'VALIDE_ORDONNATEUR': 'validée par l\'Ordonnateur',
+          'REJETE': 'rejetée'
+        };
+        
+        const currentStatus = statusMessages[alimentation.statut] || alimentation.statut;
+        toast.error(`Cette action n'est pas autorisée. L'alimentation est actuellement ${currentStatus}.`);
+        return;
+      }
     }
     
     // Pour les actions de workflow (valider, rejeter, mettre en instance),
@@ -249,33 +271,54 @@ const AlimentationsPage = () => {
     setShowDocumentsModal(true);
   };
 
-  // Déterminer si l'utilisateur peut modifier/supprimer (Responsable achats uniquement)
+  // Déterminer si l'utilisateur peut modifier/supprimer
   const canEditOrDelete = (alimentation: Alimentation) => {
     // Les admins peuvent toujours modifier/supprimer (sauf si verrouillé)
     if (userRole === 'Admin' && !alimentation.isLocked) {
       return true;
     }
     
-    const isResponsableAchats = userRole === 'Responsable Achats' ||
-      userRole === 'Responsable achats';
-    // Peut modifier/supprimer si statut SAISIE ou INSTANCE_FINANCIER (pas encore validé) et non verrouillé
-    // Peut aussi supprimer (mais pas modifier) si statut REJETE
-    const editableStatuses = ['SAISIE', 'INSTANCE_FINANCIER', 'REJETE'];
-    return isResponsableAchats && editableStatuses.includes(alimentation.statut) && !alimentation.isLocked;
+    const isAgentDeSaisie = userRole === 'Agent de saisie';
+    const isResponsableAchats = userRole === 'Responsable Achats' || userRole === 'Responsable achats';
+    
+    // Agent de saisie peut modifier/supprimer EN_ATTENTE, EN_INSTANCE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE et REJETE
+    if (isAgentDeSaisie) {
+      const agentEditableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE'];
+      return agentEditableStatuses.includes(alimentation.statut) && !alimentation.isLocked;
+    }
+    
+    // Responsable achats peut modifier/supprimer EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE, REJETE
+    if (isResponsableAchats) {
+      const respAchatsEditableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE'];
+      return respAchatsEditableStatuses.includes(alimentation.statut) && !alimentation.isLocked;
+    }
+    
+    return false;
   };
 
   // Déterminer si on peut modifier (et pas seulement supprimer)
   const canEdit = (alimentation: Alimentation) => {
-    // Admin peut toujours modifier (y compris REJETE pour remettre en INSTANCE_FINANCIER)
+    // Admin peut toujours modifier
     if (userRole === 'Admin' && !alimentation.isLocked) {
       return true;
     }
     
-    const isResponsableAchats = userRole === 'Responsable Achats' ||
-      userRole === 'Responsable achats';
-    // Responsable achats peut modifier uniquement SAISIE et INSTANCE_FINANCIER (pas REJETE)
-    const editableStatuses = ['SAISIE', 'INSTANCE_FINANCIER'];
-    return isResponsableAchats && editableStatuses.includes(alimentation.statut) && !alimentation.isLocked;
+    const isAgentDeSaisie = userRole === 'Agent de saisie';
+    const isResponsableAchats = userRole === 'Responsable Achats' || userRole === 'Responsable achats';
+    
+    // Agent de saisie peut modifier EN_ATTENTE, EN_INSTANCE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE et REJETE
+    if (isAgentDeSaisie) {
+      const agentEditableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE'];
+      return agentEditableStatuses.includes(alimentation.statut) && !alimentation.isLocked;
+    }
+    
+    // Responsable achats peut modifier EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE, REJETE
+    if (isResponsableAchats) {
+      const respAchatsEditableStatuses = ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE'];
+      return respAchatsEditableStatuses.includes(alimentation.statut) && !alimentation.isLocked;
+    }
+    
+    return false;
   };
 
   // Déterminer les actions disponibles selon le rôle et le statut
@@ -285,58 +328,50 @@ const AlimentationsPage = () => {
 
     const actions: Array<'instance' | 'validate' | 'reject' | 'maintenir-instance'> = [];
 
-    // Debug
-    console.log('getAvailableActions - userRole:', userRole, 'statut:', alimentation.statut);
-
     // Les administrateurs ont tous les droits
     if (userRole === 'Admin') {
-      console.log('✅ Utilisateur admin - tous les droits accordés');
-      // Actions disponibles selon le statut
       switch (alimentation.statut) {
-        case 'SAISIE':
-        case 'INSTANCE_FINANCIER':
-          return ['maintenir-instance', 'validate'];
-        case 'VALIDE_FINANCIER':
-        case 'INSTANCE_DIRECTEUR':
+        case 'EN_ATTENTE':
+        case 'EN_INSTANCE_ACHATS':
           return ['instance', 'validate'];
-        case 'VALIDE_DIRECTEUR':
-        case 'INSTANCE_ORDONNATEUR':
+        case 'VALIDE_ACHATS':
+          return ['instance', 'validate'];
+        case 'EN_INSTANCE_ORDONNATEUR':
           return ['instance', 'validate', 'reject'];
         default:
           return [];
       }
     }
 
-    // Directeur Financier / Responsable financier
-    if (userRole === 'Directeur Financier' ||
-      userRole === 'Directeur financier' ||
-      userRole === 'Responsable financier' ||
-      userRole === 'Responsable Financier') {
-      // Pour les alimentations en INSTANCE_FINANCIER (nouvellement créées)
-      if (alimentation.statut === 'INSTANCE_FINANCIER') {
-        console.log('✅ Ajout des actions pour Responsable financier');
-        actions.push('maintenir-instance', 'validate');
+    // Responsable Achats
+    if (userRole === 'Responsable Achats' || userRole === 'Responsable achats') {
+      if (alimentation.statut === 'EN_ATTENTE') {
+        // Peut demander corrections ou valider
+        actions.push('instance', 'validate');
+      } else if (alimentation.statut === 'EN_INSTANCE_ACHATS') {
+        // Peut valider après corrections de l'Agent ou du Resp. Financier
+        actions.push('validate');
+      } else if (alimentation.statut === 'EN_INSTANCE_ORDONNATEUR') {
+        // Peut valider après corrections demandées par l'Ordonnateur
+        actions.push('validate');
       }
+      // REJETE : Peut seulement modifier (modification → EN_INSTANCE_FINANCIER automatique), pas de bouton valider
+      // EN_INSTANCE_FINANCIER : Peut seulement modifier (déjà validé), pas d'action validate
     }
 
-    // Directeur
-    if (userRole === 'Directeur') {
-      console.log('🔍 Directeur - statut alimentation:', alimentation.statut);
-      if (alimentation.statut === 'VALIDE_FINANCIER') {
-        console.log('✅ Ajout actions instance et validate pour Directeur (VALIDE_FINANCIER)');
+    // Responsable Financier
+    if (userRole === 'Responsable financier' || userRole === 'Responsable Financier') {
+      if (alimentation.statut === 'VALIDE_ACHATS') {
+        // Peut renvoyer au Resp. Achats (instance) ou valider
         actions.push('instance', 'validate');
-      } else if (alimentation.statut === 'INSTANCE_DIRECTEUR') {
-        console.log('✅ Ajout action validate pour Directeur (INSTANCE_DIRECTEUR)');
-        actions.push('validate');
       }
     }
 
     // Ordonnateur
     if (userRole === 'Ordonnateur') {
-      if (alimentation.statut === 'VALIDE_DIRECTEUR') {
+      if (alimentation.statut === 'EN_INSTANCE_ORDONNATEUR') {
+        // Peut mettre en instance, valider ou rejeter
         actions.push('instance', 'validate', 'reject');
-      } else if (alimentation.statut === 'INSTANCE_ORDONNATEUR') {
-        actions.push('validate', 'reject');
       }
     }
 
@@ -348,52 +383,137 @@ const AlimentationsPage = () => {
     const normalizedRole = userRole.toLowerCase().trim();
     
     if (userRole === 'Admin') {
-      // Admin peut voir tous les statuts (SAISIE = INSTANCE_FINANCIER, VALIDE_FINANCIER = INSTANCE_DIRECTEUR, VALIDE_DIRECTEUR = INSTANCE_ORDONNATEUR)
-      return ['TOUS', 'INSTANCE_FINANCIER', 'VALIDE_FINANCIER', 'VALIDE_DIRECTEUR', 'VALIDE_ORDONNATEUR', 'REJETE'];
+      // Admin peut voir tous les statuts
+      return ['TOUS', 'EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'VALIDE_ORDONNATEUR', 'REJETE'];
     }
-    else if (normalizedRole.includes('financier')) {
-      // Directeur financier voit : INSTANCE_FINANCIER (à traiter) et VALIDE_FINANCIER (traités)
-      return ['TOUS', 'INSTANCE_FINANCIER', 'VALIDE_FINANCIER'];
+    else if (normalizedRole === 'agent de saisie') {
+      // Agent de saisie voit : EN_ATTENTE (ses créations), EN_INSTANCE_ACHATS (à traiter par Resp. Achats), EN_INSTANCE_FINANCIER (renvoyés par Resp. Financier), MIS_EN_INSTANCE (renvoyés par Ordonnateur - à corriger), EN_INSTANCE_ORDONNATEUR (en traitement - info), REJETE (rejetées), VALIDE_ORDONNATEUR (validées)
+      return ['TOUS', 'EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'EN_INSTANCE_ORDONNATEUR', 'REJETE', 'VALIDE_ORDONNATEUR'];
     }
-    else if (normalizedRole === 'directeur') {
-      // Directeur voit : VALIDE_FINANCIER (= Instance Directeur, à traiter) et VALIDE_DIRECTEUR (traités)
-      return ['TOUS', 'VALIDE_FINANCIER', 'VALIDE_DIRECTEUR'];
+    else if (normalizedRole === 'responsable achats') {
+      // Responsable achats voit : EN_INSTANCE_ACHATS (à traiter), VALIDE_ACHATS (à modifier seulement), EN_INSTANCE_FINANCIER (à modifier seulement), EN_INSTANCE_ORDONNATEUR (en traitement - info), MIS_EN_INSTANCE (renvoyés par Ordonnateur - à traiter), REJETE (rejetées), VALIDE_ORDONNATEUR (validées)
+      return ['TOUS', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'REJETE', 'VALIDE_ORDONNATEUR'];
+    }
+    else if (normalizedRole === 'responsable financier') {
+      // Responsable financier voit : VALIDE_ACHATS (validés par Resp. Achats, à valider), EN_INSTANCE_FINANCIER (renvoyés par lui-même), EN_INSTANCE_ORDONNATEUR (en traitement - info), MIS_EN_INSTANCE (renvoyés par Ordonnateur - info), REJETE (rejetées), VALIDE_ORDONNATEUR (validées)
+      return ['TOUS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'REJETE', 'VALIDE_ORDONNATEUR'];
     }
     else if (normalizedRole === 'ordonnateur') {
-      // Ordonnateur voit : VALIDE_DIRECTEUR (= Instance Ordonnateur, à traiter) et VALIDE_ORDONNATEUR (traités)
-      return ['TOUS', 'VALIDE_DIRECTEUR', 'VALIDE_ORDONNATEUR'];
-    }
-    else if (normalizedRole === 'agent de saisie' || normalizedRole.includes('responsable')) {
-      // Agent et Responsable voient : leurs saisies
-      return ['TOUS', 'INSTANCE_FINANCIER', 'REJETE'];
+      // Ordonnateur voit : EN_INSTANCE_ORDONNATEUR (à valider/rejeter/mettre en instance), MIS_EN_INSTANCE (renvoyés par lui), REJETE (rejetées), VALIDE_ORDONNATEUR (validées)
+      return ['TOUS', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'REJETE', 'VALIDE_ORDONNATEUR'];
     }
     
     return ['TOUS'];
   };
 
-  // Filtrer les alimentations selon le statut
+  // Filtrer les alimentations selon la date ET le statut (ordre: date puis statut)
   const getFilteredAlimentations = () => {
     let filtered = alimentations;
     
-    // Si un statut spécifique est sélectionné (pas TOUS), filtrer par ce statut
-    if (statusFilter !== 'TOUS') {
-      filtered = filtered.filter(a => a.statut === statusFilter);
-      return filtered;
+    // 0. Filtre par rôle (appliqué en premier) - Chaque rôle ne voit que ses alimentations
+    if (userRole === 'Responsable Achats' || userRole === 'Responsable achats') {
+      // Responsable Achats voit : EN_ATTENTE (nouveaux), EN_INSTANCE_ACHATS (corrections), VALIDE_ACHATS (modification seulement), EN_INSTANCE_FINANCIER (modification seulement), EN_INSTANCE_ORDONNATEUR (en traitement - info), MIS_EN_INSTANCE (corrections Ordonnateur), REJETE (à modifier/renvoyer), VALIDE_ORDONNATEUR (validées)
+      filtered = filtered.filter(a => 
+        a.statut === 'EN_ATTENTE' || a.statut === 'EN_INSTANCE_ACHATS' || a.statut === 'VALIDE_ACHATS' || a.statut === 'EN_INSTANCE_FINANCIER' || a.statut === 'EN_INSTANCE_ORDONNATEUR' || a.statut === 'MIS_EN_INSTANCE' || a.statut === 'REJETE' || a.statut === 'VALIDE_ORDONNATEUR'
+      );
+    } else if (userRole === 'Responsable Financier' || userRole === 'Responsable financier') {
+      // Responsable Financier voit : VALIDE_ACHATS (validés par Resp. Achats), EN_INSTANCE_FINANCIER (renvoyés par lui-même), EN_INSTANCE_ORDONNATEUR (en traitement - info), MIS_EN_INSTANCE (renvoyés par Ordonnateur - info), REJETE (rejetées par Ordonnateur), VALIDE_ORDONNATEUR (validées)
+      filtered = filtered.filter(a => a.statut === 'VALIDE_ACHATS' || a.statut === 'EN_INSTANCE_FINANCIER' || a.statut === 'EN_INSTANCE_ORDONNATEUR' || a.statut === 'MIS_EN_INSTANCE' || a.statut === 'REJETE' || a.statut === 'VALIDE_ORDONNATEUR');
+    } else if (userRole === 'Ordonnateur') {
+      // Ordonnateur voit : EN_INSTANCE_ORDONNATEUR (validés par Resp. Financier, à traiter), MIS_EN_INSTANCE (renvoyés par lui), REJETE (rejetées), VALIDE_ORDONNATEUR (validées)
+      filtered = filtered.filter(a => a.statut === 'EN_INSTANCE_ORDONNATEUR' || a.statut === 'MIS_EN_INSTANCE' || a.statut === 'REJETE' || a.statut === 'VALIDE_ORDONNATEUR');
+    } else if (userRole === 'Agent de saisie' || userRole === 'Agent Saisie') {
+      // Agent de saisie voit : EN_ATTENTE (ses créations), EN_INSTANCE_ACHATS (corrections demandées par Resp. Achats), EN_INSTANCE_FINANCIER (corrections demandées par Resp. Financier), MIS_EN_INSTANCE (corrections demandées par Ordonnateur), EN_INSTANCE_ORDONNATEUR, REJETE (rejetées par Ordonnateur), VALIDE_ORDONNATEUR (validées)
+      filtered = filtered.filter(a => 
+        a.statut === 'EN_ATTENTE' || a.statut === 'EN_INSTANCE_ACHATS' || a.statut === 'EN_INSTANCE_FINANCIER' || a.statut === 'MIS_EN_INSTANCE' || a.statut === 'EN_INSTANCE_ORDONNATEUR' || a.statut === 'REJETE' || a.statut === 'VALIDE_ORDONNATEUR'
+      );
+    }
+    // Admin voit tout - pas de filtre
+    
+    // 1. Filtre par date (appliqué en premier)
+    if (dateFilter !== 'TOUS') {
+      filtered = filtered.filter(a => {
+        const alimentationDate = new Date(a.createdAt);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        switch (dateFilter) {
+          case 'AUJOURD_HUI':
+            const todayEnd = new Date(today);
+            todayEnd.setHours(23, 59, 59, 999);
+            return alimentationDate >= today && alimentationDate <= todayEnd;
+            
+          case 'CETTE_SEMAINE':
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            weekEnd.setHours(23, 59, 59, 999);
+            return alimentationDate >= weekStart && alimentationDate <= weekEnd;
+            
+          case 'CE_MOIS':
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+            return alimentationDate >= monthStart && alimentationDate <= monthEnd;
+            
+          case 'CETTE_ANNEE':
+            const yearStart = new Date(today.getFullYear(), 0, 1);
+            const yearEnd = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
+            return alimentationDate >= yearStart && alimentationDate <= yearEnd;
+            
+          case 'PERSONNALISE':
+            // Si les deux dates ne sont pas remplies, ne pas filtrer (afficher tout)
+            if (!customStartDate || !customEndDate) {
+              return true;
+            }
+            const startDate = new Date(customStartDate);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(customEndDate);
+            endDate.setHours(23, 59, 59, 999);
+            return alimentationDate >= startDate && alimentationDate <= endDate;
+            
+          default:
+            return true;
+        }
+      });
     }
     
-    // Si statusFilter === 'TOUS', afficher toutes les alimentations
+    // 2. Filtre par statut (appliqué après le filtre par date)
+    if (statusFilter !== 'TOUS') {
+      filtered = filtered.filter(a => a.statut === statusFilter);
+    }
+    
     return filtered;
   };
+
+  // Appliquer la pagination sur les alimentations filtrées
+  const getPaginatedAlimentations = () => {
+    const filtered = getFilteredAlimentations();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  // Calculer le nombre total de pages
+  const getTotalPages = () => {
+    const filtered = getFilteredAlimentations();
+    return Math.ceil(filtered.length / itemsPerPage);
+  };
+
+  // Réinitialiser la page à 1 quand les filtres changent
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, dateFilter, customStartDate, customEndDate]);
 
   // Obtenir la couleur du badge selon le statut
   const getStatusBadgeColor = (statut: string) => {
     switch (statut) {
-      case 'SAISIE': return 'badge-warning';
-      case 'INSTANCE_FINANCIER': return 'badge-info';
-      case 'VALIDE_FINANCIER': return 'badge-success';
-      case 'INSTANCE_DIRECTEUR': return 'badge-info';
-      case 'VALIDE_DIRECTEUR': return 'badge-success';
-      case 'INSTANCE_ORDONNATEUR': return 'badge-info';
+      case 'EN_ATTENTE': return 'badge-warning badge-outline';
+      case 'EN_INSTANCE_ACHATS': return 'badge-warning';
+      case 'VALIDE_ACHATS': return 'badge-success badge-outline';
+      case 'EN_INSTANCE_FINANCIER': return 'badge-warning';
+      case 'EN_INSTANCE_ORDONNATEUR': return 'badge-info';
+      case 'MIS_EN_INSTANCE': return 'badge-error badge-outline';
       case 'VALIDE_ORDONNATEUR': return 'badge-success';
       case 'REJETE': return 'badge-error';
       default: return 'badge-ghost';
@@ -403,13 +523,13 @@ const AlimentationsPage = () => {
   // Obtenir le libellé du statut
   const getStatusLabel = (statut: string) => {
     const labels: Record<string, string> = {
-      'SAISIE': '📝 En saisie',
-      'INSTANCE_FINANCIER': '⏳ Instance Financier',
-      'VALIDE_FINANCIER': '✅ Validé Financier',
-      'INSTANCE_DIRECTEUR': '⏳ Instance Directeur',
-      'VALIDE_DIRECTEUR': '✅ Validé Directeur',
-      'INSTANCE_ORDONNATEUR': '⏳ Instance Ordonnateur',
-      'VALIDE_ORDONNATEUR': '🎉 Validé Final',
+      'EN_ATTENTE': '⏳ En attente',
+      'EN_INSTANCE_ACHATS': '📝 Correction Achats',
+      'VALIDE_ACHATS': '✅ Validé Achats',
+      'EN_INSTANCE_FINANCIER': '📝 Correction Financier',
+      'EN_INSTANCE_ORDONNATEUR': '📄 À traiter',
+      'MIS_EN_INSTANCE': '🔙 À corriger',
+      'VALIDE_ORDONNATEUR': '✅✅ Validé',
       'REJETE': '❌ Rejeté'
     };
     return labels[statut] || statut;
@@ -451,6 +571,29 @@ const AlimentationsPage = () => {
     return url;
   };
 
+  // Déterminer si l'action "Mettre en instance" est disponible pour la sélection
+  const canPutInInstance = () => {
+    const selected = alimentations.filter(a => selectedIds.has(a.id));
+    if (selected.length === 0) return false;
+    
+    // Pour Responsable Achats : peut mettre en instance les EN_ATTENTE uniquement
+    if (userRole === 'Responsable Achats' || userRole === 'Responsable achats') {
+      return selected.some(a => a.statut === 'EN_ATTENTE');
+    }
+    
+    // Pour Responsable Financier : peut mettre en instance les VALIDE_ACHATS uniquement
+    if (userRole === 'Responsable financier' || userRole === 'Responsable Financier') {
+      return selected.some(a => a.statut === 'VALIDE_ACHATS');
+    }
+    
+    // Pour Ordonnateur : peut mettre en instance les EN_INSTANCE_ORDONNATEUR uniquement
+    if (userRole === 'Ordonnateur') {
+      return selected.some(a => a.statut === 'EN_INSTANCE_ORDONNATEUR');
+    }
+    
+    return true; // Admin
+  };
+
   // Exécuter une action groupée
   const executeBulkAction = async (action: 'instance' | 'validate' | 'reject') => {
     if (selectedIds.size === 0) {
@@ -479,6 +622,10 @@ const AlimentationsPage = () => {
 
     for (const id of Array.from(selectedIds)) {
       try {
+        // Trouver l'alimentation pour voir son statut
+        const alimentation = alimentations.find(a => a.id === id);
+        console.log(`🔍 Action ${action} sur alimentation ${id} - Statut actuel:`, alimentation?.statut);
+
         const endpoint = action === 'reject'
           ? `/api/alimentations/${id}/reject`
           : action === 'instance'
@@ -496,7 +643,7 @@ const AlimentationsPage = () => {
           successCount++;
         } else {
           errorCount++;
-          console.error(`Erreur pour ${id}:`, result.message || 'Erreur inconnue');
+          console.error(`❌ Erreur pour ${id} (statut: ${alimentation?.statut}):`, result.message || 'Erreur inconnue');
         }
       } catch (error) {
         errorCount++;
@@ -549,7 +696,7 @@ const AlimentationsPage = () => {
             {userRole && (
               <span className="badge badge-outline">{userRole}</span>
             )}
-            {(userRole === 'Responsable Achats' || userRole === 'Responsable achats') && (
+            {(userRole === 'Agent de saisie' || userRole === 'Responsable Achats' || userRole === 'Responsable achats') && (
               <button
                 className="btn btn-primary"
                 onClick={() => (document.getElementById('modal_nouvelle_alimentation') as HTMLDialogElement)?.showModal()}
@@ -560,11 +707,102 @@ const AlimentationsPage = () => {
           </div>
         </div>
 
+        {/* Message d'indication sur l'utilisation des filtres */}
+        {!loading && !roleLoading && userRole && (
+          <div className="mb-4 bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
+            <div className="flex items-start gap-2">
+              <span className="text-blue-600 text-lg">ℹ️</span>
+              <div className="text-sm text-blue-800">
+                <p className="font-semibold mb-1">Utilisation des filtres :</p>
+                <p>Les filtres sont appliqués dans l'ordre suivant : <strong>1️⃣ Filtre par date</strong> puis <strong>2️⃣ Filtre par statut</strong>. Vous pouvez combiner les deux pour affiner vos résultats.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filtre par date */}
+        {!loading && !roleLoading && userRole && (
+          <div className="mb-4">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="font-semibold text-sm">1️⃣ Filtrer par date :</span>
+              <div className="flex flex-wrap gap-2 items-center">
+                <button
+                  className={`btn btn-sm ${dateFilter === 'TOUS' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter('TOUS')}
+                >
+                  📅 Toutes les dates
+                </button>
+                <button
+                  className={`btn btn-sm ${dateFilter === 'AUJOURD_HUI' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter('AUJOURD_HUI')}
+                >
+                  📆 Aujourd'hui
+                </button>
+                <button
+                  className={`btn btn-sm ${dateFilter === 'CETTE_SEMAINE' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter('CETTE_SEMAINE')}
+                >
+                  📅 Cette semaine
+                </button>
+                <button
+                  className={`btn btn-sm ${dateFilter === 'CE_MOIS' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter('CE_MOIS')}
+                >
+                  🗓️ Ce mois
+                </button>
+                <button
+                  className={`btn btn-sm ${dateFilter === 'CETTE_ANNEE' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter('CETTE_ANNEE')}
+                >
+                  📅 Cette année
+                </button>
+                <button
+                  className={`btn btn-sm ${dateFilter === 'PERSONNALISE' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setDateFilter('PERSONNALISE')}
+                >
+                  ⚙️ Période personnalisée
+                </button>
+              </div>
+            </div>
+            
+            {/* Sélecteur de dates personnalisées */}
+            {dateFilter === 'PERSONNALISE' && (
+              <div className="mt-3 flex flex-wrap gap-3 items-center bg-base-200 p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="custom-start-date" className="text-sm font-medium">Du :</label>
+                  <input
+                    id="custom-start-date"
+                    type="date"
+                    className="input input-sm input-bordered"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="custom-end-date" className="text-sm font-medium">Au :</label>
+                  <input
+                    id="custom-end-date"
+                    type="date"
+                    className="input input-sm input-bordered"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                  />
+                </div>
+                {customStartDate && customEndDate && (
+                  <span className="text-xs text-gray-500">
+                    🔍 Période : {new Date(customStartDate).toLocaleDateString('fr-FR')} - {new Date(customEndDate).toLocaleDateString('fr-FR')}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Filtre par statut */}
         {!loading && !roleLoading && userRole && (
           <div className="mb-4">
             <div className="flex flex-wrap gap-2 items-center">
-              <span className="font-semibold text-sm">Filtrer par statut :</span>
+              <span className="font-semibold text-sm">2️⃣ Filtrer par statut :</span>
               <div className="flex flex-wrap gap-2">
                 {getRelevantStatuses().map((status) => (
                   <button
@@ -573,17 +811,26 @@ const AlimentationsPage = () => {
                     onClick={() => setStatusFilter(status)}
                   >
                     {status === 'TOUS' && `📋 Tous (${alimentations.length})`}
-                    {status === 'INSTANCE_FINANCIER' && `⏳ Instance Financier (${alimentations.filter(a => a.statut === 'INSTANCE_FINANCIER').length})`}
-                    {status === 'VALIDE_FINANCIER' && `⏳ Instance Directeur (${alimentations.filter(a => a.statut === 'VALIDE_FINANCIER').length})`}
-                    {status === 'VALIDE_DIRECTEUR' && `⏳ Instance Ordonnateur (${alimentations.filter(a => a.statut === 'VALIDE_DIRECTEUR').length})`}
-                    {status === 'VALIDE_ORDONNATEUR' && `✅ Validé Final (${alimentations.filter(a => a.statut === 'VALIDE_ORDONNATEUR').length})`}
+                    {status === 'EN_ATTENTE' && `⏳ En attente (${alimentations.filter(a => a.statut === 'EN_ATTENTE').length})`}
+                    {status === 'EN_INSTANCE_ACHATS' && `📝 Correction Achats (${alimentations.filter(a => a.statut === 'EN_INSTANCE_ACHATS').length})`}
+                    {status === 'VALIDE_ACHATS' && `✅ Validé Achats (${alimentations.filter(a => a.statut === 'VALIDE_ACHATS').length})`}
+                    {status === 'EN_INSTANCE_FINANCIER' && `📝 Correction Financier (${alimentations.filter(a => a.statut === 'EN_INSTANCE_FINANCIER').length})`}
+                    {status === 'EN_INSTANCE_ORDONNATEUR' && `📄 À traiter (${alimentations.filter(a => a.statut === 'EN_INSTANCE_ORDONNATEUR').length})`}
+                    {status === 'MIS_EN_INSTANCE' && `🔙 À corriger (${alimentations.filter(a => a.statut === 'MIS_EN_INSTANCE').length})`}
+                    {status === 'VALIDE_ORDONNATEUR' && `✅✅ Validé (${alimentations.filter(a => a.statut === 'VALIDE_ORDONNATEUR').length})`}
                     {status === 'REJETE' && `❌ Rejeté (${alimentations.filter(a => a.statut === 'REJETE').length})`}
                   </button>
                 ))}
               </div>
             </div>
+            <div className="text-xs text-info mt-2 flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span><strong>Légende :</strong> 📝 Corrections demandées | 📄 En traitement | 🔙 Renvoyé pour modification | ✅ Validé</span>
+            </div>
             <div className="text-xs text-gray-500 mt-2">
-              📌 {statusFilter === 'TOUS' ? `Affichage de toutes les alimentations (${getFilteredAlimentations().length})` : `Affichage des alimentations avec le statut : ${statusFilter} (${getFilteredAlimentations().length})`}
+              📊 Résultats filtrés : {getFilteredAlimentations().length} alimentation(s) trouvée(s)
             </div>
           </div>
         )}
@@ -599,8 +846,8 @@ const AlimentationsPage = () => {
           </div>
         ) : (
           <>
-            {/* Barre d'actions groupées - Non visible pour Responsable Achats */}
-            {selectedIds.size > 0 && userRole !== 'Responsable Achats' && userRole !== 'Responsable achats' && (
+            {/* Barre d'actions groupées - Visible pour Responsable Achats, Responsable Financier, Ordonnateur et Admin */}
+            {selectedIds.size > 0 && (userRole === 'Responsable Achats' || userRole === 'Responsable achats' || userRole === 'Responsable Financier' || userRole === 'Responsable financier' || userRole === 'Ordonnateur' || userRole === 'Admin') && (
               <div className="mb-4 p-4 bg-base-200 rounded-lg flex flex-wrap gap-2 items-center justify-between">
                 <div className="flex items-center gap-4">
                   <span className="font-semibold">{selectedIds.size} alimentation(s) sélectionnée(s)</span>
@@ -621,13 +868,15 @@ const AlimentationsPage = () => {
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
                   />
-                  <button
-                    className="btn btn-sm btn-info"
-                    onClick={() => executeBulkAction('instance')}
-                    disabled={bulkActionInProgress}
-                  >
-                    {bulkActionInProgress ? <span className="loading loading-spinner loading-xs"></span> : '⏳ Mettre en instance'}
-                  </button>
+                  {canPutInInstance() && (
+                    <button
+                      className="btn btn-sm btn-info"
+                      onClick={() => executeBulkAction('instance')}
+                      disabled={bulkActionInProgress}
+                    >
+                      {bulkActionInProgress ? <span className="loading loading-spinner loading-xs"></span> : '⏳ Mettre en instance'}
+                    </button>
+                  )}
                   <button
                     className="btn btn-sm btn-success"
                     onClick={() => executeBulkAction('validate')}
@@ -654,8 +903,8 @@ const AlimentationsPage = () => {
               <table className="table table-xs w-full">
                 <thead>
                   <tr className="bg-primary text-primary-content">
-                    {/* Checkbox de sélection globale - Masquée pour Responsable Achats */}
-                    {userRole !== 'Responsable Achats' && userRole !== 'Responsable achats' && (
+                    {/* Checkbox de sélection globale - Visible pour les utilisateurs qui peuvent faire des actions groupées */}
+                    {(userRole === 'Responsable Achats' || userRole === 'Responsable achats' || userRole === 'Responsable Financier' || userRole === 'Responsable financier' || userRole === 'Ordonnateur' || userRole === 'Admin') && (
                       <th className="text-sm font-semibold">
                         <input
                           type="checkbox"
@@ -678,10 +927,10 @@ const AlimentationsPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {getFilteredAlimentations().map((alimentation) => (
+                  {getPaginatedAlimentations().map((alimentation) => (
                     <tr key={alimentation.id} className="hover:bg-base-200 transition-colors border-b border-base-300">
-                      {/* Checkbox de sélection - Masquée pour Responsable Achats */}
-                      {userRole !== 'Responsable Achats' && userRole !== 'Responsable achats' && (
+                      {/* Checkbox de sélection - Visible pour les utilisateurs qui peuvent faire des actions groupées */}
+                      {(userRole === 'Responsable Achats' || userRole === 'Responsable achats' || userRole === 'Responsable Financier' || userRole === 'Responsable financier' || userRole === 'Ordonnateur' || userRole === 'Admin') && (
                         <td className="py-2">
                           <input
                             type="checkbox"
@@ -871,11 +1120,45 @@ const AlimentationsPage = () => {
                   ))}
                 </tbody>
               </table>
+
+              {/* Pagination Desktop */}
+              {getFilteredAlimentations().length > 0 && (
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-base-300 pt-4">
+                  <div className="text-sm text-base-content/70">
+                    Affichage de {((currentPage - 1) * itemsPerPage) + 1} à{' '}
+                    {Math.min(currentPage * itemsPerPage, getFilteredAlimentations().length)} sur{' '}
+                    {getFilteredAlimentations().length} alimentations
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="select select-bordered select-sm"
+                      value={itemsPerPage}
+                      title="Éléments par page"
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value={10}>10 / page</option>
+                      <option value={25}>25 / page</option>
+                      <option value={50}>50 / page</option>
+                      <option value={100}>100 / page</option>
+                    </select>
+                    <div className="join">
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>«</button>
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>‹</button>
+                      <button className="join-item btn btn-sm btn-active">Page {currentPage} / {getTotalPages()}</button>
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === getTotalPages()}>›</button>
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(getTotalPages())} disabled={currentPage === getTotalPages()}>»</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Vue Mobile - Cartes */}
             <div className="lg:hidden space-y-4">
-              {getFilteredAlimentations().map((alimentation) => (
+              {getPaginatedAlimentations().map((alimentation) => (
                 <div key={alimentation.id} className="card bg-base-100 shadow-lg">
                   <div className="card-body p-4">
                     {/* En-tête */}
@@ -1071,6 +1354,40 @@ const AlimentationsPage = () => {
                   </div>
                 </div>
               ))}
+
+              {/* Pagination Mobile */}
+              {getFilteredAlimentations().length > 0 && (
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-base-300 pt-4">
+                  <div className="text-sm text-base-content/70">
+                    Affichage de {((currentPage - 1) * itemsPerPage) + 1} à{' '}
+                    {Math.min(currentPage * itemsPerPage, getFilteredAlimentations().length)} sur{' '}
+                    {getFilteredAlimentations().length} alimentations
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="select select-bordered select-sm"
+                      value={itemsPerPage}
+                      title="Éléments par page"
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value={10}>10 / page</option>
+                      <option value={25}>25 / page</option>
+                      <option value={50}>50 / page</option>
+                      <option value={100}>100 / page</option>
+                    </select>
+                    <div className="join">
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>«</button>
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>‹</button>
+                      <button className="join-item btn btn-sm btn-active">Page {currentPage} / {getTotalPages()}</button>
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === getTotalPages()}>›</button>
+                      <button className="join-item btn btn-sm" onClick={() => setCurrentPage(getTotalPages())} disabled={currentPage === getTotalPages()}>»</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1098,22 +1415,49 @@ const AlimentationsPage = () => {
                     <span>Êtes-vous sûr de vouloir supprimer cette alimentation ?</span>
                   </div>
                 ) : (
-                  <div className="form-control mb-4">
-                    <label className="label">
-                      <span className="label-text">Observations <span className="text-error">*</span></span>
-                    </label>
-                    <textarea
-                      className="textarea textarea-bordered"
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                      placeholder="Saisir vos observations (obligatoire)..."
-                      rows={4}
-                      required
-                    />
-                    <label className="label">
-                      <span className="label-text-alt text-error">La saisie d'observations est obligatoire pour toutes les actions</span>
-                    </label>
-                  </div>
+                  <>
+                    <div className={`alert mb-4 ${actionType === 'instance' ? 'alert-info' :
+                        actionType === 'validate' ? 'alert-success' :
+                          'alert-error'
+                      }`}>
+                      <div className="text-sm">
+                        {actionType === 'instance' && (userRole === 'Responsable financier' || userRole === 'Responsable Financier') && (
+                          <p>L'alimentation sera retournée au responsable des achats pour correction.</p>
+                        )}
+                        {actionType === 'instance' && userRole === 'Ordonnateur' && (
+                          <p>L'alimentation sera retournée au responsable des achats pour correction.</p>
+                        )}
+                        {actionType === 'validate' && (userRole === 'Responsable Achats' || userRole === 'Responsable achats') && (
+                          <p>L'alimentation sera transmise au responsable financier pour validation.</p>
+                        )}
+                        {actionType === 'validate' && (userRole === 'Responsable financier' || userRole === 'Responsable Financier') && (
+                          <p>L'alimentation sera transmise à l'ordonnateur pour validation finale.</p>
+                        )}
+                        {actionType === 'validate' && userRole === 'Ordonnateur' && (
+                          <p><strong>⚠️ Attention :</strong> Cette action est finale. Le stock sera mouvementé (entrée) et une transaction sera créée. L'alimentation sera verrouillée.</p>
+                        )}
+                        {actionType === 'reject' && (
+                          <p><strong>⚠️ Attention :</strong> L'alimentation sera rejetée définitivement. Aucun mouvement de stock ne sera effectué.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="form-control mb-4">
+                      <label className="label">
+                        <span className="label-text">Observations <span className="text-error">*</span></span>
+                      </label>
+                      <textarea
+                        className="textarea textarea-bordered"
+                        value={observations}
+                        onChange={(e) => setObservations(e.target.value)}
+                        placeholder="Saisir vos observations (obligatoire)..."
+                        rows={4}
+                        required
+                      />
+                      <label className="label">
+                        <span className="label-text-alt text-error">La saisie d'observations est obligatoire pour toutes les actions</span>
+                      </label>
+                    </div>
+                  </>
                 )}
 
                 <div className="modal-action">

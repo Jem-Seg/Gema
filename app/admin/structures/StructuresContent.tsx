@@ -27,9 +27,6 @@ interface Structure {
     name: string;
     abreviation: string;
   };
-  _count?: {
-    users: number;
-  };
 }
 
 interface Ministere {
@@ -462,15 +459,6 @@ export default function StructuresContent() {
                     <p className="text-sm sm:text-base text-base-content/70 leading-relaxed line-clamp-3" title={structure.description}>
                       {structure.description}
                     </p>
-                  </div>
-                )}
-
-                {structure._count && (
-                  <div className="flex gap-2 pt-2 border-t border-base-200">
-                    <div className="badge badge-success badge-sm">
-                      <Users className="w-3 h-3 mr-1" />
-                      {structure._count.users} utilisateur{structure._count.users > 1 ? 's' : ''}
-                    </div>
                   </div>
                 )}
               </div>

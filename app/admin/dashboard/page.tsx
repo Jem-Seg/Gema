@@ -13,7 +13,9 @@ import {
   Shield, 
   UserCheck, 
   UserX, 
-  Settings 
+  Settings,
+  Database,
+  FileText
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -139,6 +141,22 @@ export default function AdminDashboard() {
       href: '/admin/roles',
       count: stats.totalRoles,
       color: 'text-accent'
+    },
+    {
+      title: 'Sauvegarde & Restauration',
+      description: 'Sauvegarder et restaurer la base de données',
+      icon: Database,
+      href: '/admin/backup',
+      count: 0,
+      color: 'text-success'
+    },
+    {
+      title: 'Logs Système',
+      description: 'Consulter et analyser les journaux d\'application',
+      icon: FileText,
+      href: '/admin/logs',
+      count: 0,
+      color: 'text-purple-500'
     },
     {
       title: 'Paramètres',

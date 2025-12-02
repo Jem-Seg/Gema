@@ -42,5 +42,9 @@ next-env.d.ts
 
 /app/generated/prisma
 
-# uploads
+# uploads (développement uniquement)
 /public/uploads/
+
+# logs
+/logs/
+*.log

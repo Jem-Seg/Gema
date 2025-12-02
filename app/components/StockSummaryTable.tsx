@@ -179,7 +179,7 @@ const StockSummaryTable = ({ clerkId, structureId }: { clerkId: string; structur
                 <Package className="w-6 h-6 text-green-600" />
                 <div>
                   <p className="font-semibold text-green-800">Stock Normal</p>
-                  <p className="text-sm text-green-600">Plus de 10% du stock initial</p>
+                  <p className="text-sm text-green-600">&gt; 10% du stock initial</p>
                 </div>
               </div>
               <span className="badge badge-success badge-lg font-bold">
@@ -193,7 +193,7 @@ const StockSummaryTable = ({ clerkId, structureId }: { clerkId: string; structur
                 <AlertTriangle className="w-6 h-6 text-blue-600" />
                 <div>
                   <p className="font-semibold text-blue-800">Stock d&apos;Alerte</p>
-                  <p className="text-sm text-blue-600">6% à 10% du stock initial</p>
+                  <p className="text-sm text-blue-600">5% - 10% du stock initial</p>
                 </div>
               </div>
               <span className="badge badge-info badge-lg font-bold">
@@ -207,7 +207,7 @@ const StockSummaryTable = ({ clerkId, structureId }: { clerkId: string; structur
                 <AlertTriangle className="w-6 h-6 text-yellow-600" />
                 <div>
                   <p className="font-semibold text-yellow-800">Stock Faible</p>
-                  <p className="text-sm text-yellow-600">1% à 5% du stock initial</p>
+                  <p className="text-sm text-yellow-600">1 unité - 5% du stock initial</p>
                 </div>
               </div>
               <span className="badge badge-warning badge-lg font-bold">

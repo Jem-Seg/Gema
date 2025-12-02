@@ -28,7 +28,6 @@ export async function GET(
         isApproved: true,
         roleId: true,
         ministereId: true,
-        structureId: true,
         role: {
           select: {
             id: true,
@@ -42,21 +41,8 @@ export async function GET(
             abreviation: true,
           }
         },
-        structure: {
-          select: {
-            id: true,
-            name: true,
-            abreviation: true,
-            ministere: {
-              select: {
-                name: true,
-                abreviation: true,
-              }
-            }
-          }
-        },
       }
-    })
+    });
 
     if (!user) {
       return NextResponse.json(
@@ -124,14 +110,26 @@ export async function GET(
         }
       }
     } else {
-      // Agent de saisie, Directeur: leur structure uniquement
-      if (user.structure) {
-        structures = [{
-          id: user.ministere?.id || '',
-          name: user.ministere?.name || '',
-          abreviation: user.ministere?.abreviation || '',
-          structures: [user.structure]
-        }]
+      // Agent de saisie: toutes les structures de leur ministère
+      if (user.ministereId) {
+        const ministere = await prisma.ministere.findUnique({
+          where: { id: user.ministereId },
+          select: {
+            id: true,
+            name: true,
+            abreviation: true,
+            structures: {
+              select: {
+                id: true,
+                name: true,
+                abreviation: true,
+              }
+            }
+          }
+        })
+        if (ministere) {
+          structures = [ministere]
+        }
       }
     }
 

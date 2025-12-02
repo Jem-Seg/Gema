@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
 
-    const { name, description, requiresStructure } = await request.json();
+    const { name, description } = await request.json();
 
     // Validation des données
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         description: description.trim(),
-        requiresStructure: requiresStructure === true,
       },
       include: {
         _count: {

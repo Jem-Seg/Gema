@@ -35,6 +35,7 @@ const Page = () => {
   const user = session?.user
   const [userPermissions, setUserPermissions] = React.useState<UserPermissions | null>(null)
   const [userData, setUserData] = React.useState<UserData | null>(null)
+  // Par défaut, afficher toutes les structures du ministère (chaîne vide)
   const [selectedStructureId, setSelectedStructureId] = React.useState<string | undefined>("")
   // Charger les informations de permissions de l'utilisateur
   React.useEffect(() => {

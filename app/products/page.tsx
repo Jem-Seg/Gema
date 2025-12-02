@@ -90,6 +90,10 @@ const ProductsPage = () => {
   const [structures, setStructures] = React.useState<any[]>([])
   const [selectedStructureFilter, setSelectedStructureFilter] = React.useState<string>('ALL')
 
+  // États pour la pagination
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [itemsPerPage, setItemsPerPage] = React.useState(10)
+
   // Fonction pour charger les produits (réutilisable)
   const loadProducts = React.useCallback(async () => {
     if (!(user as any)?.id || !userPermissions) return;
@@ -140,6 +144,21 @@ const ProductsPage = () => {
     }
     return products.filter(p => p.structureId === selectedStructureFilter);
   };
+
+  // Pagination
+  const getPaginatedProducts = () => {
+    const filtered = getFilteredProducts();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  const totalPages = Math.ceil(getFilteredProducts().length / itemsPerPage);
+
+  // Réinitialiser la page à 1 quand le filtre change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStructureFilter]);
 
   const handleDeleteProduct = async (product: Produit) => {
     const confirmDelete = window.confirm("Êtes-vous sûr de vouloir supprimer ce produit ?");
@@ -278,7 +297,7 @@ const ProductsPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {getFilteredProducts().map((product, index) => (
+                {getPaginatedProducts().map((product, index) => (
                   <tr key={product.id} className="hover:bg-base-200 transition-colors border-b border-base-300">
                     <td className="py-2">{index + 1}</td>
                     <td className="py-2">
@@ -398,7 +417,7 @@ const ProductsPage = () => {
 
           {/* Affichage mobile - cartes */}
           <div className='block md:hidden space-y-4'>
-            {getFilteredProducts().map((product, index) => (
+            {getPaginatedProducts().map((product, index) => (
               <div key={product.id} className="card bg-base-100 shadow-lg border-2 border-[#F1D2BF] hover:border-[#793205] transition-all">
                 <div className="card-body p-4">
                   <div className="flex items-start gap-4">
@@ -524,6 +543,40 @@ const ProductsPage = () => {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {getFilteredProducts().length > 0 && (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-base-300 pt-4">
+              <div className="text-sm text-base-content/70">
+                Affichage de {((currentPage - 1) * itemsPerPage) + 1} à{' '}
+                {Math.min(currentPage * itemsPerPage, getFilteredProducts().length)} sur{' '}
+                {getFilteredProducts().length} produits
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  className="select select-bordered select-sm"
+                  value={itemsPerPage}
+                  title="Éléments par page"
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+                <div className="join">
+                  <button className="join-item btn btn-sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>«</button>
+                  <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>‹</button>
+                  <button className="join-item btn btn-sm btn-active">Page {currentPage} / {totalPages}</button>
+                  <button className="join-item btn btn-sm" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}>›</button>
+                  <button className="join-item btn btn-sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>»</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </Wrapper>

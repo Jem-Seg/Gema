@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const result = await getAlimentations(
       user.id,
       userRole,
-      structureId || user.structureId || undefined,
+      structureId || undefined,
       user.ministereId || undefined
     );
 
@@ -58,9 +58,10 @@ export async function POST(request: NextRequest) {
     const { user } = userInfo;
 
     // Vérifier que l'utilisateur est autorisé à créer des alimentations
-    if (user.role?.name !== 'Responsable Achats' && user.role?.name !== 'Responsable achats') {
+    const allowedRoles = ['Agent de saisie', 'Responsable Achats', 'Responsable achats'];
+    if (!allowedRoles.includes(user.role?.name || '')) {
       return NextResponse.json(
-        { error: 'Seuls les Responsables Achats peuvent créer des alimentations' },
+        { error: 'Seuls les Agents de saisie et Responsables Achats peuvent créer des alimentations' },
         { status: 403 }
       );
     }
@@ -98,8 +99,7 @@ export async function POST(request: NextRequest) {
 
     // Vérifier que le produit existe et appartient au ministère
     const produit = await prisma.produit.findUnique({
-      where: { id: produitId },
-      include: { structure: true }
+      where: { id: produitId }
     });
 
     if (!produit) {
@@ -116,6 +116,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Déterminer le statut initial selon le rôle
+    // Agent de saisie : EN_ATTENTE (en instance responsable achats)
+    // Responsable achats : VALIDE_ACHATS (en instance financier)
+    const isResponsableAchats = user.role?.name === 'Responsable Achats' || user.role?.name === 'Responsable achats';
+    const statutInitial = isResponsableAchats ? 'VALIDE_ACHATS' : 'EN_ATTENTE';
+
     const result = await createAlimentation({
       produitId,
       quantite: parseInt(quantite),
@@ -124,7 +130,8 @@ export async function POST(request: NextRequest) {
       fournisseurNIF,
       ministereId: user.ministereId!,
       structureId: produit.structureId,
-      createurId: user.id
+      createurId: user.id,
+      statutInitial
     });
 
     return NextResponse.json(result, { 

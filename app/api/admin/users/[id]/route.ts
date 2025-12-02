@@ -17,7 +17,6 @@ export async function PUT(
       name,
       roleId,
       ministereId,
-      structureId,
       isAdmin,
       isApproved,
     } = data;
@@ -48,12 +47,8 @@ export async function PUT(
         where: { id: roleId },
       });
 
-      if (role?.requiresStructure && !structureId) {
-        return NextResponse.json(
-          { error: 'Ce rôle nécessite la sélection d\'une structure' },
-          { status: 400 }
-        );
-      }
+      // Dans le workflow simplifié, les utilisateurs ne sont pas assignés à une structure
+      // Tous les utilisateurs travaillent au niveau ministère
     }
 
     // Mettre à jour l'utilisateur
@@ -66,12 +61,10 @@ export async function PUT(
         isApproved: isApproved ?? false,
         roleId: roleId || null,
         ministereId: ministereId || null,
-        structureId: structureId || null,
       },
       include: {
         role: true,
         ministere: true,
-        structure: true,
       },
     });
 

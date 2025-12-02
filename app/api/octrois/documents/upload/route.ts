@@ -16,7 +16,6 @@ async function getUserInfo() {
     where: { id: currentUser.id },
     include: { 
       role: true,
-      structure: true,
       ministere: true
     }
   });
