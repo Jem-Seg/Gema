@@ -1311,7 +1311,7 @@ export async function getProductOverviewStats(userId: string, structureId?: stri
     });
     
     const stockValue = products.reduce((total, product) => {
-      return total + (product.price * product.quantity);
+      return total + ((product.price || 0) * product.quantity);
     }, 0);
 
     return {

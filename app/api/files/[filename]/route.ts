@@ -13,9 +13,10 @@ import logger from '@/lib/logger';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  context: { params: Promise<{ filename: string }> }
 ) {
   try {
+    const params = await context.params;
     const filename = params.filename;
 
     if (!filename) {
