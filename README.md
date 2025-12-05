@@ -85,7 +85,7 @@ Ouvrir [http://localhost:3000](http://localhost:3000)
 
 | Document | Description |
 |----------|-------------|
-| [**GUIDE_UTILISATEUR.md**](GUIDE_UTILISATEUR.md) | Manuel complet d'utilisation |
+| [**MANUEL_UTILISATEUR.md**](MANUEL_UTILISATEUR.md) | Manuel complet d'utilisation (Version 2.0) |
 | [**GUIDE_RAPIDE_ETATS.md**](GUIDE_RAPIDE_ETATS.md) | Guide des états imprimables |
 | [**ETATS_IMPRIMABLES.md**](ETATS_IMPRIMABLES.md) | Documentation détaillée des rapports |
 
