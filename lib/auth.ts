@@ -17,21 +17,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Mot de passe", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        const email = credentials?.email as string | undefined
+        const password = credentials?.password as string | undefined
+
+        if (!email || !password) {
           throw new Error("Email et mot de passe requis")
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          include: { role: true, ministere: true }
+          where: { email: email },
+          include: {
+            role: true,
+            ministere: true,
+          },
         })
 
         if (!user || !user.password) {
           throw new Error("Email ou mot de passe incorrect")
         }
 
-        const valid = await bcrypt.compare(credentials.password, user.password)
-        if (!valid) throw new Error("Email ou mot de passe incorrect")
+        const isPasswordValid = await bcrypt.compare(password, user.password)
+
+        if (!isPasswordValid) {
+          throw new Error("Email ou mot de passe incorrect")
+        }
 
         return {
           id: user.id,
@@ -40,7 +49,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           isAdmin: user.isAdmin,
           isApproved: user.isApproved,
           roleId: user.roleId,
-          ministereId: user.ministereId
+          ministereId: user.ministereId,
         }
       }
     })
