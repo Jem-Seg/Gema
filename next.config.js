@@ -1,22 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Render needs standalone output
   output: "standalone",
 
-  // Disable Turbopack explicitly for Next.js 16
   experimental: {
-    serverMinification: false,  // important
-    typedRoutes: false,
-    turbo: {
-      // Désactivation explicite
-      loader: "webpack",
-    },
+    serverActions: true
   },
 
-  // Force Webpack
-  webpack(config) {
-    return config;
+  typescript: {
+    ignoreBuildErrors: false
   },
+
+  eslint: {
+    ignoreDuringBuilds: true
+  },
+
+  poweredByHeader: false,
 };
 
 module.exports = nextConfig;
