@@ -108,12 +108,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
 
     async session({ session, token }) {
+      const t = token as any
+
       if (session.user) {
-        (session.user as any).id = token.id
-          (session.user as any).isAdmin = token.isAdmin
-            (session.user as any).isApproved = token.isApproved
-              (session.user as any).roleId = token.roleId
-                (session.user as any).ministereId = token.ministereId
+        (session.user as any).id = t.id
+          (session.user as any).isAdmin = t.isAdmin
+            (session.user as any).isApproved = t.isApproved
+              (session.user as any).roleId = t.roleId
+                (session.user as any).ministereId = t.ministereId
       }
       return session
     },
