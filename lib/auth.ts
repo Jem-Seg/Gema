@@ -2,12 +2,12 @@ import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import prisma from './prisma'
+import { auth as getAuth } from '@/lib/auth'  // Important pour callback redirect
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // Configuration de base
-  trustHost: true, // Important pour Next.js 15+
+  trustHost: true,
   basePath: '/api/auth',
-  
+
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -22,10 +22,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
-          include: {
-            role: true,
-            ministere: true
-          }
+          include: { role: true, ministere: true }
         })
 
         if (!user || !user.password) {
@@ -41,7 +38,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new Error('Email ou mot de passe incorrect')
         }
 
-        // Retourner les informations utilisateur
         return {
           id: user.id,
           email: user.email,
@@ -54,15 +50,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
     })
   ],
+
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 jours
+    maxAge: 30 * 24 * 60 * 60,
   },
+
   pages: {
     signIn: '/sign-in',
     signOut: '/sign-in',
     error: '/sign-in',
   },
+
   callbacks: {
     async jwt({ token, user, trigger }) {
       if (user) {
@@ -73,10 +72,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.ministereId = (user as any).ministereId
         token.lastRefresh = Date.now()
       }
-      
-      // Rafraîchir les données utilisateur seulement toutes les 5 minutes pour éviter surcharge
-      const shouldRefresh = !token.lastRefresh || (Date.now() - (token.lastRefresh as number)) > 5 * 60 * 1000
-      
+
+      const shouldRefresh = !token.lastRefresh ||
+        (Date.now() - (token.lastRefresh as number)) > 5 * 60 * 1000
+
       if (token.id && shouldRefresh && trigger !== 'signIn' && trigger !== 'signUp') {
         try {
           const dbUser = await prisma.user.findUnique({
@@ -88,7 +87,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               ministereId: true
             }
           })
-          
+
           if (dbUser) {
             token.isAdmin = dbUser.isAdmin
             token.isApproved = dbUser.isApproved
@@ -100,9 +99,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           console.error('Erreur rafraîchissement token:', error)
         }
       }
-      
+
       return token
     },
+
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id as string
@@ -112,64 +112,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).ministereId = token.ministereId as string | null
       }
       return session
+    },
+
+    // 🔥 REDIRECTION INTELLIGENTE (Admin / Utilisateur simple)
+    async redirect({ url, baseUrl }) {
+      const user = await getAuth()
+
+      // Si pas connecté → connexion
+      if (!user) return `${baseUrl}/sign-in`
+
+      // Si l'utilisateur existe mais n'est pas approuvé
+      if (!user.isApproved) return `${baseUrl}/sign-in?error=not-approved`
+
+      // Administrateur
+      if (user.isAdmin) return `${baseUrl}/admin/dashboard`
+
+      // Utilisateur normal
+      return `${baseUrl}/dashboard`
     }
   },
+
   secret: process.env.NEXTAUTH_SECRET,
 })
 
 export const GET = handlers.GET
 export const POST = handlers.POST
-
-// Fonction pour vérifier le statut admin
-export async function checkAdminStatus(userId: string, secretKey?: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    })
-    
-    if (!user) {
-      return false
-    }
-    
-    // Vérifier si l'utilisateur est admin en base
-    if (user.isAdmin) {
-      return true
-    }
-    
-    // Vérifier avec la clé de sécurité pour le premier admin
-    if (secretKey && secretKey === process.env.ADMIN_SECRET_KEY) {
-      // Promouvoir l'utilisateur admin
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { 
-          isAdmin: true,
-          isApproved: true 
-        }
-      })
-      return true
-    }
-    
-    return false
-  } catch (error) {
-    console.error('Erreur lors de la vérification admin:', error)
-    return false
-  }
-}
-
-// Fonction pour obtenir les informations complètes de l'utilisateur
-export async function getUserFromDatabase(userId: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        role: true,
-        ministere: true
-      }
-    })
-    
-    return user
-  } catch (error) {
-    console.error('Erreur lors de la récupération utilisateur:', error)
-    return null
-  }
-}
