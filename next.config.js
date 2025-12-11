@@ -1,9 +1,11 @@
-/** @type {import('next').NextConfig} */
+//** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    turbo: false,   // Désactive Turbopack (important pour Render)
+  output: "standalone",
+
+  // Force Webpack instead of Turbopack
+  webpack: (config) => {
+    return config;
   },
-  output: "standalone"
 };
 
 module.exports = nextConfig;
