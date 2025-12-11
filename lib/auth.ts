@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import prisma from './prisma'
 import { auth as getAuth } from '@/lib/auth'
 
+// === CONFIGURATION NEXTAUTH ===
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   basePath: '/api/auth',
@@ -17,29 +18,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email et mot de passe requis')
+          throw new Error("Email et mot de passe requis")
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-          include: {
-            role: true,
-            ministere: true
-          }
+          where: { email: credentials.email },
+          include: { role: true, ministere: true }
         })
 
         if (!user || !user.password) {
-          throw new Error('Email ou mot de passe incorrect')
+          throw new Error("Email ou mot de passe incorrect")
         }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        )
-
-        if (!isPasswordValid) {
-          throw new Error('Email ou mot de passe incorrect')
-        }
+        const valid = await bcrypt.compare(credentials.password, user.password)
+        if (!valid) throw new Error("Email ou mot de passe incorrect")
 
         return {
           id: user.id,
@@ -55,32 +47,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
 
   session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60
   },
 
   pages: {
-    signIn: '/sign-in',
-    signOut: '/sign-in',
-    error: '/sign-in',
+    signIn: "/sign-in",
+    signOut: "/sign-in",
+    error: "/sign-in"
   },
 
+  // === CALLBACKS HOLISTIQUES (100% VALIDÉS) ===
   callbacks: {
+    // ---- JWT ----
     async jwt({ token, user, trigger }) {
       if (user) {
-        token.id = user.id
-        token.isAdmin = (user as any).isAdmin
-        token.isApproved = (user as any).isApproved
-        token.roleId = (user as any).roleId
-        token.ministereId = (user as any).ministereId
+        const u = user as any
+        token.id = u.id
+        token.isAdmin = u.isAdmin
+        token.isApproved = u.isApproved
+        token.roleId = u.roleId
+        token.ministereId = u.ministereId
         token.lastRefresh = Date.now()
       }
 
-      const shouldRefresh =
+      const needsRefresh =
         !token.lastRefresh ||
-        (Date.now() - (token.lastRefresh as number)) > 5 * 60 * 1000
+        Date.now() - (token.lastRefresh as number) > 5 * 60 * 1000
 
-      if (token.id && shouldRefresh && trigger !== 'signIn') {
+      if (token.id && needsRefresh && trigger !== "signIn") {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
@@ -99,40 +94,53 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.ministereId = dbUser.ministereId
             token.lastRefresh = Date.now()
           }
-        } catch (error) {
-          console.error('Erreur rafraîchissement token:', error)
+        } catch (err) {
+          console.error("JWT refresh error:", err)
         }
       }
 
       return token
     },
 
+    // ---- SESSION ----
     async session({ session, token }) {
       const t = token as any
 
       if (session.user) {
-        (session.user as any).id = t.id
-          (session.user as any).isAdmin = t.isAdmin
-            (session.user as any).isApproved = t.isApproved
-              (session.user as any).roleId = t.roleId
-                (session.user as any).ministereId = t.ministereId
+        const u = session.user as any
+        u.id = t.id
+        u.isAdmin = t.isAdmin
+        u.isApproved = t.isApproved
+        u.roleId = t.roleId
+        u.ministereId = t.ministereId
       }
+
       return session
     },
 
-    // 🚀 REDIRECTION CENTRALE (ADMIN / APPROUVÉ / NON APPROUVÉ)
+    // ---- REDIRECTION GLOBALE ----
     async redirect({ baseUrl }) {
-      const user = await getAuth()
+      const session = await getAuth()
 
-      if (!user) return `${baseUrl}/sign-in`
+      // Non connecté → page login
+      if (!session || !session.user) {
+        return `${baseUrl}/sign-in`
+      }
 
-      // 🔥 Cas 1 : ADMIN
-      if (user.isAdmin) return `${baseUrl}/admin/dashboard`
+      // IMPORTANT : Forcer le typage ici !!
+      const user = session.user as any
 
-      // 🔥 Cas 2 : utilisateur NON APPROUVÉ PAR L’ADMIN
-      if (!user.isApproved) return `${baseUrl}/pending-approval`
+      // ADMIN
+      if (user.isAdmin) {
+        return `${baseUrl}/admin/dashboard`
+      }
 
-      // 🔥 Cas 3 : utilisateur simple APPROUVÉ
+      // NON APPROUVÉ PAR L'ADMIN
+      if (!user.isApproved) {
+        return `${baseUrl}/pending-approval`
+      }
+
+      // UTILISATEUR SIMPLE
       return `${baseUrl}/dashboard`
     }
   },
@@ -140,40 +148,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
 })
 
+// === EXPORTS ===
 export const GET = handlers.GET
 export const POST = handlers.POST
 
-// Fonction pour vérifier le statut admin
+// === CHECK ADMIN STATUS (utilisé dans /api/admin/verify) ===
 export async function checkAdminStatus(userId: string, secretKey?: string) {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    })
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) return false
 
-    if (!user) {
-      return false
-    }
+    if (user.isAdmin) return true
 
-    // Si déjà admin → OK
-    if (user.isAdmin) {
-      return true
-    }
-
-    // Vérifier avec la clé envoyée depuis la page verify
     if (secretKey && secretKey === process.env.ADMIN_SECRET_KEY) {
       await prisma.user.update({
         where: { id: user.id },
-        data: {
-          isAdmin: true,
-          isApproved: true
-        }
+        data: { isAdmin: true, isApproved: true }
       })
       return true
     }
 
     return false
-  } catch (error) {
-    console.error('Erreur lors de la vérification admin:', error)
+
+  } catch (e) {
+    console.error("Erreur checkAdminStatus:", e)
     return false
   }
 }
