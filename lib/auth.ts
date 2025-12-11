@@ -140,3 +140,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 export const GET = handlers.GET
 export const POST = handlers.POST
+
+// Fonction pour vérifier le statut admin
+export async function checkAdminStatus(userId: string, secretKey?: string) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!user) {
+      return false
+    }
+
+    // Si déjà admin → OK
+    if (user.isAdmin) {
+      return true
+    }
+
+    // Vérifier avec la clé envoyée depuis la page verify
+    if (secretKey && secretKey === process.env.ADMIN_SECRET_KEY) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isAdmin: true,
+          isApproved: true
+        }
+      })
+      return true
+    }
+
+    return false
+  } catch (error) {
+    console.error('Erreur lors de la vérification admin:', error)
+    return false
+  }
+}
