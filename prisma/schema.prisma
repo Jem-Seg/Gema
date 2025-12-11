@@ -4,71 +4,71 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Ministere {
-  id          String     @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   abreviation String  @unique
   address     String?
   phone       String?
   email       String?
 
-  structures     Structure[]
-  users          User[]        // Utilisateurs rattachés directement au ministère
-  categories     Category[]
-  produits       Produit[]
-  transactions   Transaction[]
-  alimentations  Alimentation[]
-  octrois        Octroi[]
+  structures    Structure[]
+  users         User[] // Utilisateurs rattachés directement au ministère
+  categories    Category[]
+  produits      Produit[]
+  transactions  Transaction[]
+  alimentations Alimentation[]
+  octrois       Octroi[]
 }
 
 model Structure {
-  id          String       @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  abreviation String?      // Abréviation de la structure
+  abreviation String? // Abréviation de la structure
   description String?
   ministereId String
   ministere   Ministere @relation(fields: [ministereId], references: [id], onDelete: Cascade)
 
   // SUPPRIMÉ: Plus d'utilisateurs ni catégories rattachés aux structures
   // Les catégories sont au niveau du ministère
-  produits       Produit[]
-  transactions   Transaction[]
-  alimentations  Alimentation[]
-  octrois        Octroi[]
+  produits      Produit[]
+  transactions  Transaction[]
+  alimentations Alimentation[]
+  octrois       Octroi[]
 }
 
 model User {
-  id          String       @id @default(cuid())
-  email       String     @unique
-  name        String
-  firstName   String
-  password    String     // Mot de passe haché
-  
+  id        String @id @default(cuid())
+  email     String @unique
+  name      String
+  firstName String
+  password  String // Mot de passe haché
+
   // Tous les utilisateurs sont rattachés au ministère (obligatoire après approbation)
   ministereId String?
   ministere   Ministere? @relation(fields: [ministereId], references: [id])
-  
+
   // SUPPRIMÉ: Plus de rattachement à une structure spécifique
   // Les agents de saisie travaillent sur toutes les structures du ministère
-  
-  roleId      String? // Optionnel car assigné par l'admin
-  role        Role?      @relation(fields: [roleId], references: [id])
-  isApproved  Boolean    @default(false)
-  isAdmin     Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
+
+  roleId     String? // Optionnel car assigné par l'admin
+  role       Role?    @relation(fields: [roleId], references: [id])
+  isApproved Boolean  @default(false)
+  isAdmin    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
   // Relations NextAuth
-  accounts    Account[]
-  sessions    Session[]
+  accounts Account[]
+  sessions Session[]
 }
 
 model Role {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String   @unique // Rôles simplifiés: "Agent de saisie", "Responsable Achats", "Responsable Financier", "Ordonnateur" (DIRECTEUR SUPPRIMÉ)
   description String
   // SUPPRIMÉ: requiresStructure - Plus de rattachement aux structures
@@ -78,7 +78,7 @@ model Role {
 }
 
 model Category {
-  id          String      @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String
   ministereId String
@@ -92,7 +92,7 @@ model Produit {
   id              String    @id @default(uuid())
   name            String
   description     String
-  price           Float?    // Prix optionnel - sera défini par les alimentations
+  price           Float? // Prix optionnel - sera défini par les alimentations
   quantity        Int
   initialQuantity Int       @default(0) // Quantité de départ pour calculer le seuil de stock faible
   unit            String
@@ -106,181 +106,181 @@ model Produit {
   structure       Structure @relation(fields: [structureId], references: [id])
   category        Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
-  transactions   Transaction[]
-  alimentations  Alimentation[]
-  octrois        Octroi[]
+  transactions  Transaction[]
+  alimentations Alimentation[]
+  octrois       Octroi[]
 }
 
 model Transaction {
-  id           String       @id @default(uuid())
-  type         String    // "entree" pour achat, "sortie" pour cession
-  quantity     Int
-  produitId    String
-  createdAt    DateTime  @default(now())
-  ministereId  String
-  structureId  String
-  
+  id          String   @id @default(uuid())
+  type        String // "entree" pour achat, "sortie" pour cession
+  quantity    Int
+  produitId   String
+  createdAt   DateTime @default(now())
+  ministereId String
+  structureId String
+
   // Champs pour les entrées (achats) - optionnels
-  fournisseurNom String?  // Nom du fournisseur (si type = "entree")
-  fournisseurNIF String?  // NIF du fournisseur (si type = "entree")
-  
+  fournisseurNom String? // Nom du fournisseur (si type = "entree")
+  fournisseurNIF String? // NIF du fournisseur (si type = "entree")
+
   // Champs pour les sorties (cessions) - optionnels  
-  beneficiaireNom String?     // Nom du bénéficiaire (si type = "sortie")
+  beneficiaireNom       String? // Nom du bénéficiaire (si type = "sortie")
   beneficiaireTelephone String? // Téléphone du bénéficiaire (si type = "sortie")
-  
+
   // Lien avec l'alimentation source (si type = "entree")
   alimentationId String?
-  
-  ministere      Ministere     @relation(fields: [ministereId], references: [id])
-  structure      Structure     @relation(fields: [structureId], references: [id])
-  produit        Produit       @relation(fields: [produitId], references: [id], onDelete: Cascade)
-  alimentation   Alimentation? @relation(fields: [alimentationId], references: [id], onDelete: Cascade)
-  
+
+  ministere    Ministere     @relation(fields: [ministereId], references: [id])
+  structure    Structure     @relation(fields: [structureId], references: [id])
+  produit      Produit       @relation(fields: [produitId], references: [id], onDelete: Cascade)
+  alimentation Alimentation? @relation(fields: [alimentationId], references: [id], onDelete: Cascade)
+
   @@index([alimentationId])
 }
 
 // Modèle pour les alimentations (entrées de stock)
 model Alimentation {
-  id          String   @id @default(uuid())
-  numero      String   @unique // Numéro d'alimentation auto-généré
-  
+  id     String @id @default(uuid())
+  numero String @unique // Numéro d'alimentation auto-généré
+
   // Informations produit
-  produitId   String
-  quantite    Int
+  produitId    String
+  quantite     Int
   prixUnitaire Float
-  
+
   // Informations fournisseur
   fournisseurNom String
   fournisseurNIF String?
-  
+
   // Workflow simplifié: Agent saisie → Responsable achats → Responsable financier → Ordonnateur
   // Statuts: EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, VALIDE_FINANCIER, VALIDE_ORDONNATEUR, REJETE
-  statut      String   @default("EN_ATTENTE")
+  statut       String  @default("EN_ATTENTE")
   observations String?
-  
+
   // Métadonnées
   ministereId String
   structureId String
-  createurId  String   // ID du créateur (Agent de saisie)
+  createurId  String // ID du créateur (Agent de saisie)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Verrouillage après validation finale
-  isLocked    Boolean  @default(false)
-  
+  isLocked Boolean @default(false)
+
   // Relations
-  produit      Produit   @relation(fields: [produitId], references: [id])
-  ministere    Ministere @relation(fields: [ministereId], references: [id])
-  structure    Structure @relation(fields: [structureId], references: [id])
+  produit      Produit                @relation(fields: [produitId], references: [id])
+  ministere    Ministere              @relation(fields: [ministereId], references: [id])
+  structure    Structure              @relation(fields: [structureId], references: [id])
   documents    DocumentAlimentation[]
   transactions Transaction[] // Transactions créées à partir de cette alimentation
 }
 
 // Modèle pour les documents attachés aux alimentations
 model DocumentAlimentation {
-  id              String   @id @default(uuid())
-  alimentationId  String
-  
+  id             String @id @default(uuid())
+  alimentationId String
+
   // Informations du document
-  type            String   // "FACTURE", "PV_RECEPTION", "AUTRE"
-  nom             String   // Nom du fichier
-  url             String   // URL du fichier uploadé
-  taille          Int      // Taille en octets
-  mimeType        String   // Type MIME (application/pdf, image/jpeg, etc.)
-  
+  type     String // "FACTURE", "PV_RECEPTION", "AUTRE"
+  nom      String // Nom du fichier
+  url      String // URL du fichier uploadé
+  taille   Int // Taille en octets
+  mimeType String // Type MIME (application/pdf, image/jpeg, etc.)
+
   // Métadonnées
-  uploadedBy      String   // ID de l'utilisateur qui a uploadé
-  createdAt       DateTime @default(now())
-  
+  uploadedBy String // ID de l'utilisateur qui a uploadé
+  createdAt  DateTime @default(now())
+
   // Relations
-  alimentation    Alimentation @relation(fields: [alimentationId], references: [id], onDelete: Cascade)
-  
+  alimentation Alimentation @relation(fields: [alimentationId], references: [id], onDelete: Cascade)
+
   @@index([alimentationId])
 }
 
 // Modèle pour les documents d'octroi (PV d'octroi, etc.)
 model DocumentOctroi {
-  id              String   @id @default(uuid())
-  octroiId        String
-  
+  id       String @id @default(uuid())
+  octroiId String
+
   // Informations du document
-  type            String   // "PV_OCTROI", "AUTORISATION", "AUTRE"
-  nom             String   // Nom du fichier
-  url             String   // URL du fichier uploadé
-  taille          Int      // Taille en octets
-  mimeType        String   // Type MIME (application/pdf, image/jpeg, etc.)
-  
+  type     String // "PV_OCTROI", "AUTORISATION", "AUTRE"
+  nom      String // Nom du fichier
+  url      String // URL du fichier uploadé
+  taille   Int // Taille en octets
+  mimeType String // Type MIME (application/pdf, image/jpeg, etc.)
+
   // Métadonnées
-  uploadedBy      String   // ID de l'utilisateur qui a uploadé
-  createdAt       DateTime @default(now())
-  
+  uploadedBy String // ID de l'utilisateur qui a uploadé
+  createdAt  DateTime @default(now())
+
   // Relations
-  octroi          Octroi @relation(fields: [octroiId], references: [id], onDelete: Cascade)
-  
+  octroi Octroi @relation(fields: [octroiId], references: [id], onDelete: Cascade)
+
   @@index([octroiId])
 }
 
 // Modèle pour les octrois (sorties de stock)
 model Octroi {
-  id          String   @id @default(uuid())
-  numero      String   @unique // Numéro d'octroi auto-généré
-  reference   String?  // Référence externe de l'octroi
-  dateOctroi  DateTime @default(now()) // Date de l'octroi
-  
+  id         String   @id @default(uuid())
+  numero     String   @unique // Numéro d'octroi auto-généré
+  reference  String? // Référence externe de l'octroi
+  dateOctroi DateTime @default(now()) // Date de l'octroi
+
   // Informations produit
-  produitId   String
-  quantite    Int
-  
+  produitId String
+  quantite  Int
+
   // Informations bénéficiaire
   beneficiaireNom       String
   beneficiaireTelephone String?
   motif                 String?
-  
+
   // Workflow simplifié: Agent saisie → Responsable achats → Responsable financier → Ordonnateur
   // Statuts: EN_ATTENTE, EN_INSTANCE_ACHATS, VALIDE_ACHATS, EN_INSTANCE_FINANCIER, VALIDE_FINANCIER, VALIDE_ORDONNATEUR, REJETE
-  statut      String   @default("EN_ATTENTE")
+  statut       String  @default("EN_ATTENTE")
   observations String?
-  
+
   // Métadonnées
   ministereId String
   structureId String
-  createurId  String   // ID du créateur (Agent de saisie)
+  createurId  String // ID du créateur (Agent de saisie)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Verrouillage après validation finale
-  isLocked    Boolean  @default(false)
-  
+  isLocked Boolean @default(false)
+
   // Relations
-  produit     Produit   @relation(fields: [produitId], references: [id])
-  ministere   Ministere @relation(fields: [ministereId], references: [id])
-  structure   Structure @relation(fields: [structureId], references: [id])
-  documents   DocumentOctroi[]
+  produit   Produit          @relation(fields: [produitId], references: [id])
+  ministere Ministere        @relation(fields: [ministereId], references: [id])
+  structure Structure        @relation(fields: [structureId], references: [id])
+  documents DocumentOctroi[]
 }
 
 // Historique des actions sur les alimentations et octrois
 model ActionHistorique {
-  id            String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Type d'entité et ID
-  entityType    String   // "ALIMENTATION" ou "OCTROI"
-  entityId      String   // ID de l'alimentation ou octroi
-  
+  entityType String // "ALIMENTATION" ou "OCTROI"
+  entityId   String // ID de l'alimentation ou octroi
+
   // Action effectuée
-  action        String   // "INSTANCE", "VALIDER", "REJETER"
-  ancienStatut  String   // Statut avant l'action
-  nouveauStatut String   // Statut après l'action
-  
+  action        String // "INSTANCE", "VALIDER", "REJETER"
+  ancienStatut  String // Statut avant l'action
+  nouveauStatut String // Statut après l'action
+
   // Informations utilisateur
-  userId        String   // ID de l'utilisateur qui a effectué l'action
-  userRole      String   // Rôle de l'utilisateur au moment de l'action
-  
+  userId   String // ID de l'utilisateur qui a effectué l'action
+  userRole String // Rôle de l'utilisateur au moment de l'action
+
   // Observations
-  observations  String?
-  
+  observations String?
+
   // Métadonnées
-  createdAt     DateTime @default(now())
-  
+  createdAt DateTime @default(now())
+
   @@index([entityType, entityId])
 }
 
@@ -298,9 +298,9 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([provider, providerAccountId])
 }
 
@@ -309,7 +309,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -317,7 +317,7 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
-  
+
   @@unique([identifier, token])
 }
 
@@ -327,6 +327,6 @@ model PasswordResetToken {
   token     String   @unique
   expires   DateTime
   createdAt DateTime @default(now())
-  
+
   @@index([email])
 }
