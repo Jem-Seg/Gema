@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import prisma from './prisma'
-import { auth as getAuth } from '@/lib/auth'  // Important pour callback redirect
+import { auth as getAuth } from '@/lib/auth'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -22,7 +22,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
-          include: { role: true, ministere: true }
+          include: {
+            role: true,
+            ministere: true
+          }
         })
 
         if (!user || !user.password) {
@@ -73,10 +76,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.lastRefresh = Date.now()
       }
 
-      const shouldRefresh = !token.lastRefresh ||
+      const shouldRefresh =
+        !token.lastRefresh ||
         (Date.now() - (token.lastRefresh as number)) > 5 * 60 * 1000
 
-      if (token.id && shouldRefresh && trigger !== 'signIn' && trigger !== 'signUp') {
+      if (token.id && shouldRefresh && trigger !== 'signIn') {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
@@ -105,29 +109,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id as string
-        (session.user as any).isAdmin = token.isAdmin as boolean
-        (session.user as any).isApproved = token.isApproved as boolean
-        (session.user as any).roleId = token.roleId as string | null
-        (session.user as any).ministereId = token.ministereId as string | null
+        (session.user as any).id = token.id
+          (session.user as any).isAdmin = token.isAdmin
+            (session.user as any).isApproved = token.isApproved
+              (session.user as any).roleId = token.roleId
+                (session.user as any).ministereId = token.ministereId
       }
       return session
     },
 
-    // 🔥 REDIRECTION INTELLIGENTE (Admin / Utilisateur simple)
-    async redirect({ url, baseUrl }) {
+    // 🚀 REDIRECTION CENTRALE (ADMIN / APPROUVÉ / NON APPROUVÉ)
+    async redirect({ baseUrl }) {
       const user = await getAuth()
 
-      // Si pas connecté → connexion
       if (!user) return `${baseUrl}/sign-in`
 
-      // Si l'utilisateur existe mais n'est pas approuvé
-      if (!user.isApproved) return `${baseUrl}/sign-in?error=not-approved`
-
-      // Administrateur
+      // 🔥 Cas 1 : ADMIN
       if (user.isAdmin) return `${baseUrl}/admin/dashboard`
 
-      // Utilisateur normal
+      // 🔥 Cas 2 : utilisateur NON APPROUVÉ PAR L’ADMIN
+      if (!user.isApproved) return `${baseUrl}/pending-approval`
+
+      // 🔥 Cas 3 : utilisateur simple APPROUVÉ
       return `${baseUrl}/dashboard`
     }
   },
