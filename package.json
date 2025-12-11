@@ -23,6 +23,7 @@
     "react-dom": "19.2.0",
     "react-hot-toast": "^2.6.0",
     "react-toastify": "^11.0.5",
+    "daisyui": "^4.12.24",
     "recharts": "^3.4.1",
     "uuid": "^13.0.0"
   },
@@ -31,7 +32,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.22",
-    "daisyui": "^4.12.24",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
     "postcss": "^8.4.49",
