@@ -44,12 +44,12 @@ export default function Home() {
     }
   }, [status, user]);
 
-  // Redirection vers sign-in si non authentifié
+  // Redirection vers dashboard si authentifié et approuvé
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/sign-in');
+    if (status === 'authenticated' && userStatus && !userStatus.needsApproval) {
+      router.push('/dashboard');
     }
-  }, [status, router]);
+  }, [status, userStatus, router]);
 
   const loadUserData = async () => {
     try {
@@ -98,11 +98,36 @@ export default function Home() {
   }
 
   if (!user || status === 'unauthenticated') {
-    // La redirection est gérée par useEffect
+    // Page d'accueil publique
     return (
       <Wrapper>
-        <div className="flex justify-center items-center min-h-screen">
-          <div className="loading loading-spinner loading-lg"></div>
+        <div className="hero min-h-screen bg-base-200">
+          <div className="hero-content text-center">
+            <div className="max-w-md">
+              <div className="flex justify-center mb-6">
+                <Package className="w-20 h-20 text-primary" />
+              </div>
+              <h1 className="text-5xl font-bold">GeStock</h1>
+              <p className="py-6">
+                Système de Gestion de Stock pour les ministères et structures gouvernementales.
+                Gérez vos alimentations, octrois et suivez votre stock en temps réel.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button 
+                  onClick={() => router.push('/sign-in')}
+                  className="btn btn-primary"
+                >
+                  Se connecter
+                </button>
+                <button 
+                  onClick={() => router.push('/sign-up')}
+                  className="btn btn-outline"
+                >
+                  S'inscrire
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </Wrapper>
     );

@@ -15,5 +15,5 @@ services:
         sync: false
       - key: NEXTAUTH_URL
         sync: false
-    healthCheckPath: /api/auth/session
+    healthCheckPath: /
     autoDeploy: true

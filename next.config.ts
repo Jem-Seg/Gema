@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Configuration pour déploiement production optimisé
-  output: 'standalone',
-  
   // Strict mode pour détection bugs React
   reactStrictMode: true,
 
