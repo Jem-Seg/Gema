@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 // PUT - Modifier un octroi (seulement pour Responsable achats et Agent de saisie, statut SAISIE uniquement)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -31,7 +31,7 @@ export async function PUT(
       );
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
     const body = await request.json();
     const { structureId, produitId, quantite, beneficiaireNom, dateOctroi, reference } = body;
 
@@ -173,7 +173,7 @@ export async function PUT(
     let nouveauStatut = octroi.statut;
     const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
     const isRespAchats = dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats';
-    
+
     if (isAgentSaisie) {
       // Agent de saisie : modifications selon le statut actuel
       if (octroi.statut === 'EN_INSTANCE_FINANCIER') {
@@ -224,7 +224,7 @@ export async function PUT(
         'REJETE': isAgentSaisie ? 'Octroi modifié après rejet - Renvoi au Responsable Achats' : 'Octroi modifié après rejet - Renvoi au Responsable Financier',
         'MIS_EN_INSTANCE': isAgentSaisie ? 'Octroi modifié après mise en instance ordonnateur - Renvoi au Responsable Achats' : 'Octroi modifié après mise en instance ordonnateur - Renvoi au Responsable Financier'
       };
-      
+
       await prisma.actionHistorique.create({
         data: {
           entityType: 'OCTROI',
@@ -256,7 +256,7 @@ export async function PUT(
 // DELETE - Supprimer un octroi (seulement pour Responsable achats et Agent de saisie, statut SAISIE uniquement)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -284,7 +284,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
 
     // Récupérer l'octroi
     const octroi = await prisma.octroi.findUnique({
@@ -311,7 +311,7 @@ export async function DELETE(
       // Agent de saisie peut supprimer: EN_ATTENTE, EN_INSTANCE_ACHATS, EN_INSTANCE_FINANCIER, MIS_EN_INSTANCE, REJETE
       // Responsable achats peut supprimer tous sauf VALIDE_ORDONNATEUR
       const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
-      const deletableStatuses = isAgentSaisie 
+      const deletableStatuses = isAgentSaisie
         ? ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'EN_INSTANCE_FINANCIER', 'MIS_EN_INSTANCE', 'REJETE']
         : ['EN_ATTENTE', 'EN_INSTANCE_ACHATS', 'VALIDE_ACHATS', 'EN_INSTANCE_FINANCIER', 'EN_INSTANCE_ORDONNATEUR', 'MIS_EN_INSTANCE', 'REJETE'];
       if (!deletableStatuses.includes(octroi.statut)) {
@@ -366,3 +366,6 @@ export async function DELETE(
     );
   }
 }
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';

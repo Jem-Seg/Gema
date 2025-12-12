@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   
   // Désactiver prerendering pour pages dynamiques
   experimental: {
-    // Optimisations PostgreSQL
+    // Server Actions configuration
     serverActions: {
       bodySizeLimit: '2mb',
     },

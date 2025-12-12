@@ -4,10 +4,10 @@ import prisma from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    const { id } = await context.params;
     const session = await auth()
 
     if (!session?.user) {
@@ -78,10 +78,10 @@ export async function GET(
         orderBy: { name: 'asc' }
       })
       structures = ministeres
-    } else if (user.role?.name === 'Responsable Achats' || 
-               user.role?.name === 'Responsable Financier' ||
-               user.role?.name === 'Directeur financier' ||
-               user.role?.name === 'Ordonnateur') {
+    } else if (user.role?.name === 'Responsable Achats' ||
+      user.role?.name === 'Responsable Financier' ||
+      user.role?.name === 'Directeur financier' ||
+      user.role?.name === 'Ordonnateur') {
       // Responsables: toutes les structures de leur ministère
       if (user.ministereId) {
         const ministere = await prisma.ministere.findUnique({

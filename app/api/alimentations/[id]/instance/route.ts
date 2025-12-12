@@ -20,7 +20,7 @@ async function getUserInfo() {
 // POST - Mettre en instance une alimentation
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const userInfo = await getUserInfo();
@@ -29,7 +29,7 @@ export async function POST(
     }
 
     const { user } = userInfo;
-    const { id: alimentationId } = await params;
+    const { id: alimentationId } = await context.params;
 
     // Vérifier que l'utilisateur a un rôle autorisé (workflow simplifié)
     const authorizedRoles = ['Responsable Achats', 'Responsable Financier', 'Responsable financier', 'Ordonnateur'];
@@ -58,8 +58,8 @@ export async function POST(
       observations
     );
 
-    return NextResponse.json(result, { 
-      status: result.success ? 200 : 400 
+    return NextResponse.json(result, {
+      status: result.success ? 200 : 400
     });
   } catch (error) {
     console.error('POST /api/alimentations/[id]/instance error:', error);

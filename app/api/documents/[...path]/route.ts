@@ -6,11 +6,11 @@ import { existsSync } from 'fs';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  context: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const { path } = await params;
-    
+    const { path } = await context.params;
+
     // Vérifier l'authentification
     const session = await auth();
     if (!session) {
@@ -47,7 +47,7 @@ export async function GET(
     // Déterminer le type MIME
     const extension = filePath.split('.').pop()?.toLowerCase();
     let contentType = 'application/octet-stream';
-    
+
     const mimeTypes: Record<string, string> = {
       'pdf': 'application/pdf',
       'jpg': 'image/jpeg',

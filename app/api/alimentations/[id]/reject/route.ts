@@ -5,7 +5,7 @@ import { rejectAlimentation } from '@/lib/workflows/alimentation';
 // POST - Rejeter une alimentation
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -16,7 +16,7 @@ export async function POST(
     if (!user.isApproved) {
       return NextResponse.json({ error: 'Utilisateur non approuvé' }, { status: 403 });
     }
-    const { id: alimentationId } = await params;
+    const { id: alimentationId } = await context.params;
 
     // Seul l'ordonnateur peut rejeter
     if (user.role?.name !== 'Ordonnateur') {
@@ -44,8 +44,8 @@ export async function POST(
       observations
     );
 
-    return NextResponse.json(result, { 
-      status: result.success ? 200 : 400 
+    return NextResponse.json(result, {
+      status: result.success ? 200 : 400
     });
   } catch (error) {
     console.error('POST /api/alimentations/[id]/reject error:', error);

@@ -5,12 +5,12 @@ import prisma from '@/lib/prisma';
 // PUT - Modifier un rôle
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    
-    const { id: roleId } = await params;
+
+    const { id: roleId } = await context.params;
     const { name, description } = await request.json();
 
     // Vérifier que le rôle existe
@@ -88,12 +88,12 @@ export async function PUT(
 // DELETE - Supprimer un rôle
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
-    
-    const { id: roleId } = await params;
+
+    const { id: roleId } = await context.params;
 
     // Vérifier que le rôle existe
     const existingRole = await prisma.role.findUnique({
@@ -117,8 +117,8 @@ export async function DELETE(
     // Vérifier s'il y a des utilisateurs avec ce rôle
     if (existingRole._count.users > 0) {
       return NextResponse.json(
-        { 
-          error: `Impossible de supprimer ce rôle car ${existingRole._count.users} utilisateur(s) l'utilisent` 
+        {
+          error: `Impossible de supprimer ce rôle car ${existingRole._count.users} utilisateur(s) l'utilisent`
         },
         { status: 400 }
       );

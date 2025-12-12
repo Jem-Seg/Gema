@@ -17,8 +17,7 @@ export async function GET(
       return NextResponse.json({ error: 'Utilisateur non approuvé' }, { status: 403 });
     }
 
-    const params = await context.params;
-    const ministereId = params.id;
+    const { id: ministereId } = await context.params;
 
     const ministere = await prisma.ministere.findUnique({
       where: { id: ministereId },
@@ -30,15 +29,15 @@ export async function GET(
     });
 
     if (!ministere) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Ministère non trouvé' 
+      return NextResponse.json({
+        success: false,
+        message: 'Ministère non trouvé'
       }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: ministere 
+    return NextResponse.json({
+      success: true,
+      data: ministere
     });
   } catch (error) {
     console.error('GET /api/ministeres/[id] error:', error);

@@ -349,6 +349,52 @@ Ce projet est sous licence privée.
 
 ---
 
+## 🚀 Déploiement Production
+
+### Render.com (Recommandé)
+
+**✅ Application prête pour déploiement** avec toutes les optimisations Next.js 16 + Prisma + PostgreSQL.
+
+#### Guide complet
+Voir **[RENDER_DEPLOYMENT_GUIDE.md](./RENDER_DEPLOYMENT_GUIDE.md)** pour instructions détaillées.
+
+#### Résumé rapide
+
+**1. Build Command**
+```bash
+npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+```
+
+**2. Start Command**
+```bash
+npm run start
+```
+
+**3. Variables environnement**
+```bash
+DATABASE_URL=postgresql://...  # PostgreSQL Render
+NEXTAUTH_SECRET=...            # openssl rand -base64 32
+NEXTAUTH_URL=https://votre-app.onrender.com
+NODE_ENV=production
+```
+
+**4. Configuration**
+- Node: 20.x (via .nvmrc)
+- Output: standalone (✓ configuré)
+- Region: Même que la DB
+
+#### Vérification pre-déploiement
+```bash
+./check-deployment.sh
+```
+
+#### Documentation
+- 📋 [RENDER_DEPLOYMENT_READY.md](./RENDER_DEPLOYMENT_READY.md) - Corrections appliquées
+- 📖 [RENDER_DEPLOYMENT_GUIDE.md](./RENDER_DEPLOYMENT_GUIDE.md) - Guide étape par étape
+- 📊 [FINAL_ARCHITECTURE_REPORT.md](./FINAL_ARCHITECTURE_REPORT.md) - Rapport technique
+
+---
+
 ## 🎯 Roadmap
 
 ### ✅ Complété

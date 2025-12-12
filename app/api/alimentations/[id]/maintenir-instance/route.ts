@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 // POST - Maintenir en instance (ajouter des observations sans changer le statut)
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -31,7 +31,7 @@ export async function POST(
       );
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
     const body = await request.json();
     const { observations } = body;
 

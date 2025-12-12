@@ -5,12 +5,12 @@ import prisma from '@/lib/prisma';
 // POST - Basculer le statut d'un utilisateur
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
 
-    const { id: userId } = await params;
+    const { id: userId } = await context.params;
     const { field } = await request.json();
 
     // Vérifier que le champ est valide
@@ -36,8 +36,8 @@ export async function POST(
     // Empêcher de se retirer ses propres droits admin
     const currentUserData = await getCurrentUser();
     if (
-      currentUserData && 
-      existingUser.id === currentUserData.id && 
+      currentUserData &&
+      existingUser.id === currentUserData.id &&
       field === 'isAdmin' &&
       existingUser.isAdmin
     ) {
@@ -49,7 +49,7 @@ export async function POST(
 
     // Basculer la valeur du champ
     const newValue = !existingUser[field as keyof typeof existingUser];
-    
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -61,7 +61,7 @@ export async function POST(
       },
     });
 
-    const action = field === 'isApproved' 
+    const action = field === 'isApproved'
       ? (newValue ? 'approuvé' : 'désapprouvé')
       : (newValue ? 'promu administrateur' : 'retiré des administrateurs');
 

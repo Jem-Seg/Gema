@@ -5,12 +5,12 @@ import prisma from '@/lib/prisma';
 // PUT - Modifier un utilisateur
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
 
-    const { id: userId } = await params;
+    const { id: userId } = await context.params;
     const data = await request.json();
     const {
       firstName,
@@ -84,12 +84,12 @@ export async function PUT(
 // DELETE - Supprimer un utilisateur
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAdmin();
 
-    const { id: userId } = await params;
+    const { id: userId } = await context.params;
 
     // Vérifier que l'utilisateur existe
     const existingUser = await prisma.user.findUnique({

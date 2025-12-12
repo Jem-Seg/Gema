@@ -69,7 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: credentials.email as string },
         });
 
         if (!user || !user.password) {
@@ -77,7 +77,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const isValid = await bcrypt.compare(
-          credentials.password,
+          credentials.password as string,
           user.password
         );
 
@@ -109,12 +109,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Lors de la connexion, ajouter les données utilisateur
       if (user) {
         token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
+        token.email = user.email ?? '';
+        token.name = user.name ?? '';
         token.isAdmin = user.isAdmin;
         token.isApproved = user.isApproved;
-        token.roleId = user.roleId;
-        token.ministereId = user.ministereId;
+        token.roleId = user.roleId ?? null;
+        token.ministereId = user.ministereId ?? null;
         token.lastRefresh = Date.now();
       }
 
@@ -142,13 +142,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // --------------------------
     async session({ session, token }) {
       session.user = {
-        id: token.id,
-        email: token.email,
-        name: token.name,
-        isAdmin: token.isAdmin,
-        isApproved: token.isApproved,
-        roleId: token.roleId,
-        ministereId: token.ministereId,
+        id: token.id as string,
+        email: token.email as string,
+        emailVerified: null,
+        name: token.name as string,
+        isAdmin: token.isAdmin as boolean,
+        isApproved: token.isApproved as boolean,
+        roleId: token.roleId as string | null,
+        ministereId: token.ministereId as string | null,
       };
 
       return session;
@@ -157,17 +158,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // --------------------------
     //    REDIRECTION APRES LOGIN
     // --------------------------
-    async redirect({ baseUrl, url, token }) {
-      // Pas de token → rester sur sign-in
-      if (!token) return `${baseUrl}/sign-in`;
+    async redirect({ baseUrl, url }) {
+      // Par défaut, rediriger vers dashboard si l'URL demandée est relative
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
 
-      // Cas 1 : admin
-      if (token.isAdmin) return `${baseUrl}/admin/dashboard`;
+      // Si l'URL est absolue et correspond au baseUrl, autoriser
+      if (url.startsWith(baseUrl)) return url;
 
-      // Cas 2 : utilisateur non approuvé
-      if (!token.isApproved) return `${baseUrl}/pending-approval`;
-
-      // Cas 3 : utilisateur normal approuvé
+      // Sinon, rediriger vers dashboard
       return `${baseUrl}/dashboard`;
     },
   },

@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 // PUT - Modifier une alimentation (seulement pour Responsable achats, statut SAISIE uniquement)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -27,7 +27,7 @@ export async function PUT(
     const isAdmin = dbUser.isAdmin;
     const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
     const isRespAchats = dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats';
-    
+
     if (!allowedRoles.includes(dbUser.role?.name || '') && !isAdmin) {
       return NextResponse.json(
         { success: false, message: 'Seuls l\'Agent de saisie, le Responsable achats ou un administrateur peuvent modifier des alimentations' },
@@ -35,7 +35,7 @@ export async function PUT(
       );
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
     const body = await request.json();
     const { quantite, prixUnitaire, fournisseurNom, fournisseurNIF } = body;
 
@@ -82,9 +82,9 @@ export async function PUT(
     // MIS_EN_INSTANCE : Agent de saisie (→ EN_INSTANCE_ACHATS) ET Responsable achats (→ VALIDE_ACHATS) peuvent modifier
     // REJETE : Agent de saisie (→ EN_INSTANCE_ACHATS) ET Responsable achats (→ VALIDE_ACHATS) peuvent modifier
     // Admin peut tout modifier sauf VALIDE_ORDONNATEUR
-    
+
     let nouveauStatut = alimentation.statut; // Par défaut, le statut reste inchangé
-    
+
     if (!isAdmin) {
       if (alimentation.statut === 'EN_ATTENTE' || alimentation.statut === 'EN_INSTANCE_ACHATS') {
         // Agent de saisie ET Responsable achats peuvent modifier
@@ -205,11 +205,11 @@ export async function PUT(
         nouveauStatut: nouveauStatut,
         userId: dbUser.id,
         userRole: dbUser.role?.name || 'Inconnu',
-        observations: alimentation.statut === 'REJETE' 
+        observations: alimentation.statut === 'REJETE'
           ? `Modification après rejet: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom} - Renvoi au Responsable Financier`
           : alimentation.statut === 'EN_INSTANCE_ORDONNATEUR'
-          ? `Modification après correction ordonnateur: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom} - Renvoi au Responsable Financier`
-          : `Modification: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom}`
+            ? `Modification après correction ordonnateur: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom} - Renvoi au Responsable Financier`
+            : `Modification: quantité=${quantite}, prix=${prixUnitaire}, fournisseur=${fournisseurNom}`
       }
     });
 
@@ -230,7 +230,7 @@ export async function PUT(
 // DELETE - Supprimer une alimentation (seulement pour Agent de saisie et Responsable achats, statut SAISIE uniquement)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -252,7 +252,7 @@ export async function DELETE(
     const isAdmin = dbUser.isAdmin;
     const isAgentSaisie = dbUser.role?.name === 'Agent de saisie';
     const isRespAchats = dbUser.role?.name === 'Responsable Achats' || dbUser.role?.name === 'Responsable achats';
-    
+
     if (!allowedRoles.includes(dbUser.role?.name || '') && !isAdmin) {
       return NextResponse.json(
         { success: false, message: 'Seuls l\'Agent de saisie, le Responsable achats ou un administrateur peuvent supprimer des alimentations' },
@@ -260,7 +260,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
 
     // Récupérer l'alimentation
     const alimentation = await prisma.alimentation.findUnique({
@@ -365,3 +365,6 @@ export async function DELETE(
     );
   }
 }
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
