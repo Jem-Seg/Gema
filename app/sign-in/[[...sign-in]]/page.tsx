@@ -46,14 +46,9 @@ const SignInPage = () => {
         console.log('⏳ Attente 800ms pour établir la session...')
         await new Promise(resolve => setTimeout(resolve, 800))
         
-        // Utiliser signIn avec redirect pour une redirection native NextAuth
-        console.log('🔀 Redirection via NextAuth callbackUrl')
-        await signIn('credentials', {
-          email,
-          password,
-          callbackUrl: '/post-sign-in',
-          redirect: true,
-        })
+        // Redirection vers post-sign-in
+        console.log('🔀 Redirection vers /post-sign-in')
+        router.push('/post-sign-in')
       } else {
         // Cas inattendu
         console.warn('⚠️ Résultat inattendu:', result)
