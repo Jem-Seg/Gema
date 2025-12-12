@@ -27,8 +27,8 @@ const SignInPage = () => {
         toast.error('Email ou mot de passe incorrect')
       } else {
         toast.success('Connexion réussie !')
-        router.push('/dashboard')
-        router.refresh()
+        // Redirection vers post-sign-in pour gérer la logique de permissions
+        window.location.href = '/post-sign-in'
       }
     } catch (error) {
       console.error('Erreur de connexion:', error)

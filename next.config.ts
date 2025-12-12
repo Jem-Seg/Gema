@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Mode standalone pour Render.com (production optimisée)
   output: 'standalone',
-  
+
   // Strict mode pour détection bugs React
   reactStrictMode: true,
 

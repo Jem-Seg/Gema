@@ -48,9 +48,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(signInUrl)
   }
 
-  // Rediriger vers la page d'accueil si connecté et sur une page d'auth
+  // Rediriger vers post-sign-in si connecté et sur une page d'auth
+  // Cela permet de gérer la logique de redirection après connexion
   if (token && isAuthPage) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/post-sign-in', request.url))
   }
 
   // Vérifier l'approbation et le rôle pour les routes protégées
