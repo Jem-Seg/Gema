@@ -1,9 +1,60 @@
-# 🔍 Diagnostic: Page Blanche sur Render
+# 🔧 Fix DÉFINITIF: Page Blanche + Erreurs 404 sur Render
 
-## Symptôme
-Page https://gema-l9le.onrender.com affiche seulement logo/nom, reste blanc.
+## ✅ Solution appliquée
 
-## Causes probables
+### Problème
+1. **Page blanche**: Seulement logo visible
+2. **Erreurs 404**: Tous les fichiers statiques JS/CSS introuvables
+   ```
+   Failed to load resource: 404
+   - main-app-*.js
+   - layout-*.js  
+   - page-*.js
+   - *.css
+   ```
+
+### Cause racine
+**`output: 'standalone'`** dans next.config.ts cause problèmes sur Render:
+- Fichiers statiques non copiés au bon endroit
+- Next.js cherche dans `.next/static` mais Render ne les trouve pas
+- Mode standalone nécessite configuration serveur spéciale
+
+### Solution
+**Supprimer `output: 'standalone'`** et utiliser mode standard Next.js
+
+## 📋 Changements appliqués
+
+### 1. next.config.ts
+```diff
+- output: 'standalone',  // ❌ Supprimé
+  reactStrictMode: true,
+```
+
+### 2. app/page.tsx
+**Avant**: Redirection forcée vers /sign-in  
+**Après**: Page d'accueil publique avec hero + CTA
+
+```tsx
+// Affiche landing page si non authentifié
+if (!user) {
+  return (
+    <div className="hero min-h-screen">
+      <Package icon />
+      <h1>GeStock</h1>
+      <button>Se connecter</button>
+      <button>S'inscrire</button>
+    </div>
+  );
+}
+```
+
+### 3. render.yaml
+```diff
+- healthCheckPath: /api/auth/session
++ healthCheckPath: /
+```
+
+## Causes probables (ordre d'importance)
 
 ### 1. Variables environnement manquantes ❌
 **Le plus probable**
