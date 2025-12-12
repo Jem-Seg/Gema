@@ -47,10 +47,27 @@ declare module "next-auth/jwt" {
 //    CONFIGURATION NEXTAUTH
 // ==========================
 
+// Vérification des variables d'environnement critiques
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error('❌ NEXTAUTH_SECRET non défini !');
+  throw new Error('NEXTAUTH_SECRET est requis');
+}
+
+console.log('✅ NextAuth configuré avec secret:', process.env.NEXTAUTH_SECRET?.substring(0, 10) + '...');
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   basePath: "/api/auth",
   secret: process.env.NEXTAUTH_SECRET,
+  
+  // Pages personnalisées
+  pages: {
+    signIn: '/sign-in',
+    error: '/sign-in', // Rediriger les erreurs vers sign-in
+  },
+  
+  // Debug en développement
+  debug: process.env.NODE_ENV === 'development',
 
   // --------------------------
   //        PROVIDER
@@ -125,53 +142,75 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async jwt({ token, user }) {
-      // Lors de la connexion, ajouter les données utilisateur
-      if (user) {
-        token.id = user.id;
-        token.email = user.email ?? '';
-        token.name = user.name ?? '';
-        token.isAdmin = user.isAdmin;
-        token.isApproved = user.isApproved;
-        token.roleId = user.roleId ?? null;
-        token.ministereId = user.ministereId ?? null;
-        token.lastRefresh = Date.now();
-      }
-
-      // Rafraîchir les données de la BD toutes les 5 minutes
-      if (Date.now() - (token.lastRefresh ?? 0) > 5 * 60 * 1000) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id },
-        });
-
-        if (dbUser) {
-          token.isAdmin = dbUser.isAdmin;
-          token.isApproved = dbUser.isApproved;
-          token.roleId = dbUser.roleId;
-          token.ministereId = dbUser.ministereId;
+      try {
+        // Lors de la connexion, ajouter les données utilisateur
+        if (user) {
+          console.log('🔑 JWT: Adding user data to token:', user.email);
+          token.id = user.id;
+          token.email = user.email ?? '';
+          token.name = user.name ?? '';
+          token.isAdmin = user.isAdmin;
+          token.isApproved = user.isApproved;
+          token.roleId = user.roleId ?? null;
+          token.ministereId = user.ministereId ?? null;
+          token.lastRefresh = Date.now();
+          console.log('✅ JWT: Token created successfully');
         }
 
-        token.lastRefresh = Date.now();
-      }
+        // Rafraîchir les données de la BD toutes les 5 minutes
+        if (token.id && Date.now() - (token.lastRefresh ?? 0) > 5 * 60 * 1000) {
+          try {
+            console.log('🔄 JWT: Refreshing user data from database');
+            const dbUser = await prisma.user.findUnique({
+              where: { id: token.id as string },
+            });
 
-      return token;
+            if (dbUser) {
+              token.isAdmin = dbUser.isAdmin;
+              token.isApproved = dbUser.isApproved;
+              token.roleId = dbUser.roleId;
+              token.ministereId = dbUser.ministereId;
+              console.log('✅ JWT: User data refreshed');
+            } else {
+              console.warn('⚠️ JWT: User not found in database:', token.id);
+            }
+
+            token.lastRefresh = Date.now();
+          } catch (refreshError) {
+            console.error('❌ JWT: Error refreshing user data:', refreshError);
+            // Continue avec le token existant
+          }
+        }
+
+        return token;
+      } catch (error) {
+        console.error('❌ JWT callback error:', error);
+        throw error;
+      }
     },
 
     // --------------------------
     //      SESSION CALLBACK
     // --------------------------
     async session({ session, token }) {
-      session.user = {
-        id: token.id as string,
-        email: token.email as string,
-        emailVerified: null,
-        name: token.name as string,
-        isAdmin: token.isAdmin as boolean,
-        isApproved: token.isApproved as boolean,
-        roleId: token.roleId as string | null,
-        ministereId: token.ministereId as string | null,
-      };
-
-      return session;
+      try {
+        console.log('📋 Session: Creating session for:', token.email);
+        session.user = {
+          id: token.id as string,
+          email: token.email as string,
+          emailVerified: null,
+          name: token.name as string,
+          isAdmin: token.isAdmin as boolean,
+          isApproved: token.isApproved as boolean,
+          roleId: token.roleId as string | null,
+          ministereId: token.ministereId as string | null,
+        };
+        console.log('✅ Session: Session created successfully');
+        return session;
+      } catch (error) {
+        console.error('❌ Session callback error:', error);
+        throw error;
+      }
     },
   },
 });
