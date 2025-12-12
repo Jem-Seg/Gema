@@ -4,8 +4,8 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy && npm run build
-    startCommand: npm run start
+    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy && npm run build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
+    startCommand: node .next/standalone/server.js
     envVars:
       - key: NODE_ENV
         value: production

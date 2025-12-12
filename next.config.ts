@@ -1,13 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Mode standalone pour Render.com (production optimisée)
+  output: 'standalone',
+  
   // Strict mode pour détection bugs React
   reactStrictMode: true,
-
-  // S'assurer que les assets statiques sont bien générés
-  generateBuildId: async () => {
-    return process.env.RENDER_GIT_COMMIT || 'build-' + Date.now();
-  },
 
   // Configuration Server Actions
   experimental: {

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "next start -p ${PORT:-3000}",
+    "start": "node .next/standalone/server.js",
+    "start:dev": "next start -p ${PORT:-3000}",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "deploy": "npm run build && npm run start"
