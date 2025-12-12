@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Log pour vérifier que le SessionProvider est monté
     console.log('🔐 SessionProvider monté, basePath: /api/auth');
   }, []);
 
@@ -12,7 +11,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     <NextAuthSessionProvider 
       basePath="/api/auth"
       refetchInterval={0}
-      refetchOnWindowFocus={true}
+      refetchOnWindowFocus={false}
     >
       {children}
     </NextAuthSessionProvider>
