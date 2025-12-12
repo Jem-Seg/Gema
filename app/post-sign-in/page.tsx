@@ -1,15 +1,21 @@
 "use client";
 export const dynamic = 'force-dynamic';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function PostSignInPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
+    // Empêcher les redirections multiples
+    if (hasRedirected.current) {
+      return;
+    }
+
     // Si pas encore chargé, attendre
     if (status === 'loading') {
       console.log('Session loading...');
@@ -19,6 +25,7 @@ export default function PostSignInPage() {
     // Si pas authentifié, retour à sign-in
     if (status === 'unauthenticated') {
       console.log('Not authenticated, redirecting to sign-in');
+      hasRedirected.current = true;
       window.location.href = '/sign-in';
       return;
     }
@@ -31,6 +38,8 @@ export default function PostSignInPage() {
       const hasRole = !!user.roleId;
       
       console.log('Authenticated, user status:', { isAdmin, isApproved, hasRole, user });
+      
+      hasRedirected.current = true;
       
       // Admin → dashboard admin
       if (isAdmin) {

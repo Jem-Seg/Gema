@@ -30,8 +30,10 @@ const SignInPage = () => {
         setLoading(false)
       } else if (result?.ok) {
         toast.success('Connexion réussie !')
-        // Forcer un rechargement complet pour garantir que la session est chargée
-        window.location.replace('/post-sign-in')
+        // Attendre un peu que la session soit enregistrée, puis rediriger
+        // Ne pas setLoading(false) pour garder le spinner
+        await new Promise(resolve => setTimeout(resolve, 800))
+        window.location.href = '/post-sign-in'
       } else {
         // Cas inattendu
         console.error('Résultat inattendu:', result)
