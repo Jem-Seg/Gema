@@ -13,8 +13,11 @@ const SignInPage = () => {
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('🚀 handleSubmit appelé - DÉBUT')
     e.preventDefault()
+    console.log('✋ preventDefault appelé')
     setLoading(true)
+    console.log('⏳ Loading activé')
 
     try {
       console.log('🔄 Tentative de connexion avec:', email)
