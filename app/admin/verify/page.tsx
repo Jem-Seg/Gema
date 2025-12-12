@@ -1,82 +1,79 @@
 "use client";
-// Force dynamic rendering (évite erreurs prerendering)
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import Wrapper from '@/app/components/Wrapper';
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import Wrapper from "@/app/components/Wrapper";
 
 export default function AdminVerifyPage() {
   const { data: session, status } = useSession();
   const user = session?.user;
   const router = useRouter();
-  const [secretKey, setSecretKey] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
+  const [secretKey, setSecretKey] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // -------------------------------------------------------
+  // 🔥 LOGIQUE DE REDIRECTION CENTRALISÉE
+  // -------------------------------------------------------
   useEffect(() => {
-    if (status === 'authenticated' && !user) {
-      router.push('/sign-in');
+    if (status === "loading") return;
+
+    if (status !== "authenticated" || !user) {
+      router.push("/sign-in");
       return;
     }
 
-    // Vérifier si l'utilisateur est déjà admin
-    const checkAdminStatus = async () => {
-      try {
-        const response = await fetch('/api/admin/verify');
-        const data = await response.json();
-        
-        if (data.isAdmin) {
-          setIsAdmin(true);
-          router.push('/admin/dashboard');
-        } else {
-          setIsAdmin(false);
-        }
-      } catch (error) {
-        console.error('Erreur vérification admin:', error);
-        setIsAdmin(false);
-      }
-    };
-
-    if (status === 'authenticated' && user) {
-      checkAdminStatus();
+    // Si admin → accès direct
+    if (user.isAdmin) {
+      router.push("/admin/dashboard");
+      return;
     }
-  }, [status === 'authenticated', user, router]);
 
+    // Si non admin mais approuvé → dashboard normal
+    if (user.isApproved) {
+      router.push("/dashboard");
+      return;
+    }
+
+    // Sinon → afficher la page permettant d’entrer la clé admin
+  }, [status, user, router]);
+
+  // -------------------------------------------------------
+  // 🔥 SOUMISSION DE LA CLÉ SECRÈTE ADMIN
+  // -------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const response = await fetch('/api/admin/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch("/api/auth/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secretKey }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setIsAdmin(true);
-        router.push('/admin/dashboard');
+        router.push("/admin/dashboard");
       } else {
-        setError(data.error || 'Erreur lors de la vérification');
+        setError(data.error || "Clé incorrecte");
       }
     } catch (error) {
-      console.error('Erreur:', error);
-      setError('Erreur de connexion');
+      setError("Erreur de connexion");
     } finally {
       setLoading(false);
     }
   };
 
-  if (status !== 'authenticated' || isAdmin === null) {
+  // -------------------------------------------------------
+  // LOADING SPINNER
+  // -------------------------------------------------------
+  if (status === "loading" || !session || !user) {
     return (
       <Wrapper>
         <div className="flex justify-center items-center min-h-[400px]">
@@ -86,10 +83,9 @@ export default function AdminVerifyPage() {
     );
   }
 
-  if (isAdmin) {
-    return null; // L'utilisateur sera redirigé
-  }
-
+  // -------------------------------------------------------
+  // 🔥 AFFICHAGE DU FORMULAIRE POUR AJOUTER UN ADMIN
+  // -------------------------------------------------------
   return (
     <Wrapper>
       <div className="max-w-md mx-auto mt-8">
@@ -98,9 +94,9 @@ export default function AdminVerifyPage() {
             <h1 className="card-title text-2xl font-bold mb-4">
               Accès Administrateur
             </h1>
-            
+
             <p className="text-sm text-base-content/70 mb-6">
-              Pour accéder aux fonctionnalités d&apos;administration, 
+              Pour accéder aux fonctionnalités d&apos;administration,
               veuillez entrer la clé de sécurité.
             </p>
 
@@ -128,15 +124,16 @@ export default function AdminVerifyPage() {
               <button
                 type="submit"
                 disabled={loading || !secretKey}
-                className={`btn btn-primary w-full ${loading ? 'loading' : ''}`}
+                className={`btn btn-primary w-full ${loading ? "loading" : ""
+                  }`}
               >
-                {loading ? 'Vérification...' : 'Vérifier'}
+                {loading ? "Vérification..." : "Vérifier"}
               </button>
             </form>
 
             <div className="text-center mt-4">
               <button
-                onClick={() => router.push('/')}
+                onClick={() => router.push("/")}
                 className="btn btn-ghost btn-sm"
               >
                 Retour à l&apos;accueil
