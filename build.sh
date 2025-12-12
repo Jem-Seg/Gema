@@ -26,11 +26,25 @@ npm run build
 # Copy static files to standalone directory
 echo "📋 Copying static files..."
 if [ -d ".next/static" ]; then
-  mkdir -p .next/standalone/.next/static
-  cp -r .next/static/* .next/standalone/.next/static/
-  echo "✅ Static files copied"
+  echo "   Creating .next/standalone/.next directory..."
+  mkdir -p .next/standalone/.next
+  
+  echo "   Copying .next/static to .next/standalone/.next/static..."
+  cp -r .next/static .next/standalone/.next/
+  
+  # Verify the copy worked
+  if [ -d ".next/standalone/.next/static" ]; then
+    CHUNK_COUNT=$(find .next/standalone/.next/static -name "*.js" -o -name "*.css" 2>/dev/null | wc -l | xargs)
+    echo "   ✅ Static files copied ($CHUNK_COUNT files)"
+  else
+    echo "   ❌ ERROR: Static files copy failed!"
+    echo "   Source exists: $(ls -d .next/static 2>/dev/null || echo 'NO')"
+    echo "   Target dir: $(ls -d .next/standalone/.next 2>/dev/null || echo 'NO')"
+    exit 1
+  fi
 else
   echo "❌ .next/static directory not found"
+  ls -la .next/ 2>/dev/null || echo "No .next directory"
   exit 1
 fi
 
@@ -53,11 +67,18 @@ fi
 
 # Diagnostic final
 echo ""
-echo "🔍 Build Diagnostic:"
-echo "   Static chunks: $(find .next/standalone/.next/static/chunks -name "*.js" 2>/dev/null | wc -l | xargs)"
-echo "   CSS files: $(find .next/standalone/.next/static/css -name "*.css" 2>/dev/null | wc -l | xargs)"
-echo "   BUILD_ID: $(cat .next/standalone/.next/BUILD_ID 2>/dev/null || echo 'NOT FOUND')"
-echo "   Static dir exists: $([ -d .next/standalone/.next/static ] && echo 'YES' || echo 'NO')"
+echo "=========================================="
+echo "🔍 FINAL BUILD DIAGNOSTIC"
+echo "=========================================="
+echo "Working directory: $(pwd)"
+echo "Static chunks: $(find .next/standalone/.next/static/chunks -name "*.js" 2>/dev/null | wc -l | xargs)"
+echo "CSS files: $(find .next/standalone/.next/static/css -name "*.css" 2>/dev/null | wc -l | xargs)"
+echo "BUILD_ID: $(cat .next/standalone/.next/BUILD_ID 2>/dev/null || echo 'NOT FOUND')"
+echo "Static dir: $([ -d .next/standalone/.next/static ] && echo 'EXISTS ✅' || echo 'MISSING ❌')"
+echo ""
+echo "Sample files in static/chunks:"
+ls .next/standalone/.next/static/chunks/*.js 2>/dev/null | head -3 || echo "No JS files found"
+echo "=========================================="
 
 echo ""
 echo "✨ Build completed successfully!"
