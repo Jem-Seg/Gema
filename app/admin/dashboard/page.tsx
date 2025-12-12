@@ -32,6 +32,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     pendingUsers: 0,
@@ -40,8 +41,25 @@ export default function AdminDashboard() {
     totalRoles: 0
   });
 
+  // Attendre un peu avant de commencer à vérifier
   useEffect(() => {
-    console.log('🏠 Admin Dashboard: useEffect appelé, status:', status);
+    console.log('⏰ Dashboard: Initialisation, attente 300ms...');
+    const timer = setTimeout(() => {
+      console.log('✅ Dashboard: Prêt à vérifier');
+      setIsReady(true);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    console.log('🏠 Admin Dashboard: useEffect appelé, status:', status, 'isReady:', isReady);
+    
+    // Ne rien faire tant qu'on n'est pas prêt
+    if (!isReady) {
+      console.log('⏳ Pas encore prêt, en attente...');
+      return;
+    }
     
     // Attendre que le status soit chargé
     if (status === 'loading') {
@@ -104,7 +122,7 @@ export default function AdminDashboard() {
 
       verifyAdmin();
     }
-  }, [status, user, router]);
+  }, [status, user, router, isReady]);
 
 
 
