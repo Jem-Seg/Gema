@@ -42,10 +42,13 @@ const SignInPage = () => {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
         
-        // Le middleware va automatiquement rediriger vers /post-sign-in
-        // Pas besoin de rediriger manuellement, juste recharger la page
-        console.log('🔄 Rechargement de la page pour déclencher middleware redirect')
-        window.location.reload()
+        // Forcer navigation complète vers /post-sign-in (pas de router.push)
+        console.log('🔄 Navigation forcée vers /post-sign-in')
+        
+        // Attendre un tout petit peu pour que le cookie soit set
+        setTimeout(() => {
+          window.location.href = '/post-sign-in'
+        }, 300)
       } else {
         // Cas inattendu
         console.warn('⚠️ Résultat inattendu:', result)
