@@ -3,13 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Configuration pour déploiement production optimisé
   output: 'standalone',
-
-  // CRITIQUE: Désactiver Turbopack pour production (instable en Next.js 16)
-  // Turbopack cause erreurs 404 sur chunks JS en production
-  ...(process.env.NODE_ENV === 'production' && {
-    webpack: (config) => config,
-  }),
-
+  
   // Strict mode pour détection bugs React
   reactStrictMode: true,
 
