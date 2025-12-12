@@ -69,6 +69,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: '/sign-in',
     error: '/sign-in',
   },
+  
+  // Debug mode en développement
+  debug: process.env.NODE_ENV === 'development',
+  
+  // Logger pour capturer les erreurs
+  logger: {
+    error(code, metadata) {
+      console.error('🔴 NextAuth Error:', code, metadata);
+    },
+    warn(code) {
+      console.warn('⚠️ NextAuth Warning:', code);
+    },
+    debug(code, metadata) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 NextAuth Debug:', code, metadata);
+      }
+    },
+  },
 
   // --------------------------
   //        PROVIDER
@@ -82,56 +100,65 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
 
       async authorize(credentials) {
-        console.log('🔐 Tentative de connexion pour:', credentials?.email);
-        
-        if (!credentials?.email || !credentials?.password) {
-          console.log('❌ Credentials manquantes');
-          throw new Error("Email et mot de passe requis");
+        try {
+          console.log('🔐 Tentative de connexion pour:', credentials?.email);
+          
+          if (!credentials?.email || !credentials?.password) {
+            console.log('❌ Credentials manquantes');
+            return null;
+          }
+
+          console.log('🔍 Recherche utilisateur dans la base...');
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email as string },
+          });
+
+          if (!user) {
+            console.log('❌ Utilisateur non trouvé:', credentials.email);
+            return null;
+          }
+
+          if (!user.password) {
+            console.log('❌ Pas de mot de passe pour:', credentials.email);
+            return null;
+          }
+
+          console.log('👤 Utilisateur trouvé:', {
+            email: user.email,
+            isAdmin: user.isAdmin,
+            isApproved: user.isApproved,
+            hasPassword: !!user.password
+          });
+
+          console.log('🔑 Vérification du mot de passe...');
+          const isValid = await bcrypt.compare(
+            credentials.password as string,
+            user.password
+          );
+
+          if (!isValid) {
+            console.log('❌ Mot de passe invalide pour:', credentials.email);
+            return null;
+          }
+
+          console.log('✅ Authentification réussie pour:', credentials.email);
+
+          // Renvoi des valeurs attendues par JWT + Session
+          return {
+            id: user.id,
+            email: user.email,
+            name: `${user.firstName} ${user.name}`,
+            isAdmin: user.isAdmin,
+            isApproved: user.isApproved,
+            roleId: user.roleId,
+            ministereId: user.ministereId,
+          };
+        } catch (error) {
+          console.error('💥 Erreur dans authorize:', error);
+          console.error('💥 Type erreur:', error instanceof Error ? error.message : String(error));
+          // Retourner null au lieu de throw pour éviter de casser NextAuth
+          return null;
         }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
-
-        if (!user) {
-          console.log('❌ Utilisateur non trouvé:', credentials.email);
-          throw new Error("Email ou mot de passe incorrect");
-        }
-
-        if (!user.password) {
-          console.log('❌ Pas de mot de passe pour:', credentials.email);
-          throw new Error("Email ou mot de passe incorrect");
-        }
-
-        console.log('👤 Utilisateur trouvé:', {
-          email: user.email,
-          isAdmin: user.isAdmin,
-          isApproved: user.isApproved,
-          hasPassword: !!user.password
-        });
-
-        const isValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        );
-
-        if (!isValid) {
-          console.log('❌ Mot de passe invalide pour:', credentials.email);
-          throw new Error("Email ou mot de passe incorrect");
-        }
-
-        console.log('✅ Authentification réussie pour:', credentials.email);
-
-        // Renvoi des valeurs attendues par JWT + Session
-        return {
-          id: user.id,
-          email: user.email,
-          name: `${user.firstName} ${user.name}`,
-          isAdmin: user.isAdmin,
-          isApproved: user.isApproved,
-          roleId: user.roleId,
-          ministereId: user.ministereId,
-        };
       },
     }),
   ],
@@ -212,6 +239,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         console.error('❌ Session callback error:', error);
         throw error;
       }
+    },
+  },
+  
+  // --------------------------
+  //          EVENTS
+  // --------------------------
+  events: {
+    async signIn({ user, account, profile }) {
+      console.log('🎉 Event: User signed in:', user.email);
+    },
+    async signOut({ token }) {
+      console.log('👋 Event: User signed out:', token?.email);
+    },
+    async session({ session, token }) {
+      console.log('📱 Event: Session checked:', session.user.email);
     },
   },
 });
