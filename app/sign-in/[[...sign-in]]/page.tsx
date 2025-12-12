@@ -23,17 +23,24 @@ const SignInPage = () => {
         redirect: false,
       })
 
+      console.log('SignIn result:', result) // Debug
+
       if (result?.error) {
         toast.error('Email ou mot de passe incorrect')
-      } else {
+        setLoading(false)
+      } else if (result?.ok) {
         toast.success('Connexion réussie !')
-        // Redirection vers post-sign-in pour gérer la logique de permissions
-        window.location.href = '/post-sign-in'
+        // Forcer un rechargement complet pour garantir que la session est chargée
+        window.location.replace('/post-sign-in')
+      } else {
+        // Cas inattendu
+        console.error('Résultat inattendu:', result)
+        toast.error('Une erreur est survenue lors de la connexion')
+        setLoading(false)
       }
     } catch (error) {
       console.error('Erreur de connexion:', error)
       toast.error('Une erreur est survenue')
-    } finally {
       setLoading(false)
     }
   }

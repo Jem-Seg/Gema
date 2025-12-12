@@ -21,8 +21,10 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/sign-in') || 
                      request.nextUrl.pathname.startsWith('/sign-up') ||
                      request.nextUrl.pathname.startsWith('/reset-password')
+  
+  const isPostSignIn = request.nextUrl.pathname === '/post-sign-in'
 
-  const isPublicPage = isAuthPage || request.nextUrl.pathname === '/'
+  const isPublicPage = isAuthPage || request.nextUrl.pathname === '/' || isPostSignIn
 
   // Routes protégées qui nécessitent l'approbation et un rôle
   const protectedRoutes = [
