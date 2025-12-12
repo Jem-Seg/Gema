@@ -75,13 +75,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   
   // Logger pour capturer les erreurs
   logger: {
-    error(code, metadata) {
-      console.error('🔴 NextAuth Error:', code, metadata);
+    error(error: Error) {
+      console.error('🔴 NextAuth Error:', error);
     },
-    warn(code) {
+    warn(code: string) {
       console.warn('⚠️ NextAuth Warning:', code);
     },
-    debug(code, metadata) {
+    debug(code: string, metadata?: any) {
       if (process.env.NODE_ENV === 'development') {
         console.log('🔍 NextAuth Debug:', code, metadata);
       }
