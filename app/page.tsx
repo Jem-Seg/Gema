@@ -44,12 +44,17 @@ export default function Home() {
     }
   }, [status, user]);
 
-  // Redirection vers dashboard si authentifié et approuvé
+  // Redirection vers dashboard si authentifié et approuvé (NON-ADMIN uniquement)
   useEffect(() => {
     if (status === 'authenticated' && userStatus && !userStatus.needsApproval) {
-      router.push('/dashboard');
+      // Les admins ne sont PAS redirigés ici (ils vont directement sur /admin/dashboard)
+      // Seuls les non-admins approuvés avec rôle vont sur /dashboard
+      if (!isAdmin) {
+        console.log('Non-admin approved, redirecting to /dashboard');
+        router.push('/dashboard');
+      }
     }
-  }, [status, userStatus, router]);
+  }, [status, userStatus, router, isAdmin]);
 
   const loadUserData = async () => {
     try {

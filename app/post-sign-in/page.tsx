@@ -23,10 +23,20 @@ export default function PostSignInPage() {
       return;
     }
 
-    // Si authentifié, rediriger vers la home qui gérera la suite
-    if (status === 'authenticated') {
-      console.log('Authenticated, redirecting to home', session?.user);
-      router.push('/');
+    // Si authentifié, rediriger selon le type d'utilisateur
+    if (status === 'authenticated' && session?.user) {
+      const isAdmin = (session.user as any).isAdmin;
+      console.log('Authenticated, user is admin:', isAdmin, session?.user);
+      
+      // Admin → dashboard admin
+      if (isAdmin) {
+        console.log('Redirecting admin to /admin/dashboard');
+        router.push('/admin/dashboard');
+      } else {
+        // Non-admin → homepage qui gérera l'approbation/rôle
+        console.log('Redirecting non-admin to homepage');
+        router.push('/');
+      }
     }
   }, [status, router, session]);
 
