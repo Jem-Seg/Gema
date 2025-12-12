@@ -6,27 +6,11 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function PostSignInPage() {
-  const [isReady, setIsReady] = useState(false);
   const { data: session, status } = useSession();
   const router = useRouter();
   const hasRedirected = useRef(false);
 
-  // Attendre un peu avant de commencer à vérifier la session
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    // Ne rien faire tant qu'on n'est pas prêt
-    if (!isReady) {
-      console.log('Waiting before checking session...');
-      return;
-    }
-
     // Empêcher les redirections multiples
     if (hasRedirected.current) {
       return;
@@ -73,7 +57,7 @@ export default function PostSignInPage() {
         window.location.href = '/admin/verify';
       }
     }
-  }, [isReady, status, session]);
+  }, [status, session]);
 
   // Afficher un loader pendant le traitement
   return (
