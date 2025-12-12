@@ -23,8 +23,9 @@ export async function middleware(request: NextRequest) {
                      request.nextUrl.pathname.startsWith('/reset-password')
   
   const isPostSignIn = request.nextUrl.pathname === '/post-sign-in'
+  const isAdminVerify = request.nextUrl.pathname === '/admin/verify'
 
-  const isPublicPage = isAuthPage || request.nextUrl.pathname === '/' || isPostSignIn
+  const isPublicPage = isAuthPage || request.nextUrl.pathname === '/' || isPostSignIn || isAdminVerify
 
   // Routes protégées qui nécessitent l'approbation et un rôle
   const protectedRoutes = [

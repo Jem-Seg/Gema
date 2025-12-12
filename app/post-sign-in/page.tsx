@@ -25,17 +25,27 @@ export default function PostSignInPage() {
 
     // Si authentifié, rediriger selon le type d'utilisateur
     if (status === 'authenticated' && session?.user) {
-      const isAdmin = (session.user as any).isAdmin;
-      console.log('Authenticated, user is admin:', isAdmin, session?.user);
+      const user = session.user as any;
+      const isAdmin = user.isAdmin;
+      const isApproved = user.isApproved;
+      const hasRole = !!user.roleId;
+      
+      console.log('Authenticated, user status:', { isAdmin, isApproved, hasRole });
       
       // Admin → dashboard admin
       if (isAdmin) {
         console.log('Redirecting admin to /admin/dashboard');
         router.push('/admin/dashboard');
-      } else {
-        // Non-admin → homepage qui gérera l'approbation/rôle
-        console.log('Redirecting non-admin to homepage');
-        router.push('/');
+      } 
+      // Non-admin approuvé avec rôle → dashboard utilisateur
+      else if (isApproved && hasRole) {
+        console.log('Redirecting approved user to /dashboard');
+        router.push('/dashboard');
+      }
+      // Non-admin non approuvé ou sans rôle → page d'attente avec option clé admin
+      else {
+        console.log('Redirecting non-approved user to /admin/verify');
+        router.push('/admin/verify');
       }
     }
   }, [status, router, session]);
