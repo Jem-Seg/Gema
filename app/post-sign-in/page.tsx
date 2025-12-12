@@ -15,7 +15,7 @@ export default function PostSignInPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsReady(true);
-    }, 500);
+    }, 300);
     
     return () => clearTimeout(timer);
   }, []);

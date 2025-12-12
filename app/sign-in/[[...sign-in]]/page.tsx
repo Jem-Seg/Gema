@@ -39,12 +39,12 @@ const SignInPage = () => {
         toast.error('Email ou mot de passe incorrect')
         setLoading(false)
       } else if (result?.ok) {
-        console.log('✅ Connexion réussie, redirection dans 1000ms...')
+        console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
-        // Attendre que la session soit enregistrée
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        console.log('🔀 Redirection vers /post-sign-in')
-        window.location.href = '/post-sign-in'
+        
+        // Redirection immédiate sans délai pour éviter les problèmes de timing
+        console.log('🔀 Redirection immédiate vers /post-sign-in')
+        window.location.replace('/post-sign-in')
       } else {
         // Cas inattendu - même si pas d'erreur explicite, on redirige quand même
         console.warn('⚠️ Résultat inattendu mais pas d\'erreur - tentative de redirection:', result)
