@@ -8,7 +8,7 @@
    ```
    Failed to load resource: 404
    - main-app-*.js
-   - layout-*.js  
+   - layout-*.js
    - page-*.js
    - *.css
    ```
@@ -31,7 +31,7 @@
 ```
 
 ### 2. app/page.tsx
-**Avant**: Redirection forcée vers /sign-in  
+**Avant**: Redirection forcée vers /sign-in
 **Après**: Page d'accueil publique avec hero + CTA
 
 ```tsx
@@ -73,7 +73,7 @@ ADMIN_SECRET_KEY=...
 ```
 
 ### 2. NEXTAUTH_URL incorrecte
-**Erreur fréquente**: 
+**Erreur fréquente**:
 - ❌ `http://gema-l9le.onrender.com` (http au lieu de https)
 - ❌ `https://gema-l9le.onrender.com/` (trailing slash)
 - ✅ `https://gema-l9le.onrender.com` (correct)
@@ -86,7 +86,7 @@ ADMIN_SECRET_KEY=...
 ## Solution appliquée dans le code
 
 ### Changement 1: Page d'accueil publique
-**Avant**: Redirection automatique vers /sign-in → boucle infinie si erreur  
+**Avant**: Redirection automatique vers /sign-in → boucle infinie si erreur
 **Après**: Page d'accueil avec boutons Se connecter / S'inscrire
 
 ```tsx
@@ -97,7 +97,7 @@ if (!user) {
 ```
 
 ### Changement 2: Redirection intelligente
-**Avant**: Redirection vers /sign-in si non authentifié  
+**Avant**: Redirection vers /sign-in si non authentifié
 **Après**: Redirection vers /dashboard si authentifié
 
 ## Étapes de correction sur Render
@@ -146,9 +146,9 @@ NextAuth initialized
 ### Test 1: Page d'accueil
 ```
 URL: https://gema-l9le.onrender.com/
-Attendu: 
+Attendu:
 - Logo GeStock visible
-- Titre "GeStock" 
+- Titre "GeStock"
 - Description
 - Boutons "Se connecter" et "S'inscrire"
 ```
@@ -215,9 +215,9 @@ Si problème persiste après vérification variables:
 
 ## Résumé
 
-**Problème**: Page blanche = erreur JavaScript côté client  
-**Cause probable**: Variables environnement manquantes ou incorrectes  
-**Solution code**: Page d'accueil publique (pas de redirection forcée)  
+**Problème**: Page blanche = erreur JavaScript côté client
+**Cause probable**: Variables environnement manquantes ou incorrectes
+**Solution code**: Page d'accueil publique (pas de redirection forcée)
 **Solution config**: Vérifier NEXTAUTH_URL et DATABASE_URL sur Render
 
 **Après correction variables + redéploiement**: Page devrait afficher hero GeStock avec boutons CTA.
