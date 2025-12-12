@@ -42,18 +42,23 @@ const SignInPage = () => {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
         
-        // Redirection immédiate avec URL absolue pour éviter les problèmes
-        const baseUrl = window.location.origin;
-        const redirectUrl = `${baseUrl}/post-sign-in`;
-        console.log('🔀 Redirection immédiate vers:', redirectUrl)
-        window.location.href = redirectUrl
+        // Attendre que la session soit établie avant de rediriger
+        console.log('⏳ Attente 800ms pour établir la session...')
+        await new Promise(resolve => setTimeout(resolve, 800))
+        
+        // Utiliser signIn avec redirect pour une redirection native NextAuth
+        console.log('🔀 Redirection via NextAuth callbackUrl')
+        await signIn('credentials', {
+          email,
+          password,
+          callbackUrl: '/post-sign-in',
+          redirect: true,
+        })
       } else {
-        // Cas inattendu - même si pas d'erreur explicite, on redirige quand même
-        console.warn('⚠️ Résultat inattendu mais pas d\'erreur - tentative de redirection:', result)
-        toast.success('Connexion en cours...')
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        console.log('🔀 Redirection forcée vers /post-sign-in')
-        window.location.href = '/post-sign-in'
+        // Cas inattendu
+        console.warn('⚠️ Résultat inattendu:', result)
+        toast.error('Une erreur est survenue')
+        setLoading(false)
       }
     } catch (error) {
       console.error('💥 Erreur de connexion:', error)
