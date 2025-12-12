@@ -5,7 +5,7 @@ services:
     plan: starter
     region: oregon
     buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: cd .next/standalone && node server.js
+    startCommand: cd .next/standalone && NODE_ENV=production node server.js
     envVars:
       - key: NODE_ENV
         value: production

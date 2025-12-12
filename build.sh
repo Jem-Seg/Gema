@@ -44,4 +44,20 @@ else
   echo "⚠️  No public directory found"
 fi
 
+# Copy custom server if exists
+if [ -f "custom-server.js" ]; then
+  echo "📋 Copying custom server..."
+  cp custom-server.js .next/standalone/
+  echo "✅ Custom server copied"
+fi
+
+# Diagnostic final
+echo ""
+echo "🔍 Build Diagnostic:"
+echo "   Static chunks: $(find .next/standalone/.next/static/chunks -name "*.js" 2>/dev/null | wc -l | xargs)"
+echo "   CSS files: $(find .next/standalone/.next/static/css -name "*.css" 2>/dev/null | wc -l | xargs)"
+echo "   BUILD_ID: $(cat .next/standalone/.next/BUILD_ID 2>/dev/null || echo 'NOT FOUND')"
+echo "   Static dir exists: $([ -d .next/standalone/.next/static ] && echo 'YES' || echo 'NO')"
+
+echo ""
 echo "✨ Build completed successfully!"
