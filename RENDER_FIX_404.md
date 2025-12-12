@@ -1,34 +1,100 @@
 # 🚨 CORRECTION RENDER - FICHIERS STATIQUES 404
 
 ## Problème
-Tous les fichiers JS et CSS retournent 404 sur Render.
+Tous les fichiers JS et CSS retournent 404 sur Render malgré Start Command correct.
 
-## Cause Racine
-Le **Start Command dans Render Dashboard** ne correspond pas à la configuration nécessaire pour le mode standalone.
+## Vérifications CRITIQUES
 
-## Solution IMMÉDIATE
+### ⚠️ IMPORTANT : Render Dashboard vs render.yaml
 
-### 1. Dans Render Dashboard
+**Render utilise les settings du Dashboard en PRIORITÉ** si vous avez modifié manuellement les commandes.
 
-Allez sur : https://dashboard.render.com/web/YOUR_SERVICE
+### 1. Vérifier Build Command dans Render Dashboard
 
-Puis : **Settings** → **Build & Deploy** → **Start Command**
+Allez sur : https://dashboard.render.com → Votre service → **Settings**
 
-Changez de :
+**Build & Deploy** → **Build Command** doit être :
 ```bash
-node .next/standalone/server.js
+chmod +x build.sh && ./build.sh
 ```
 
-À :
+**PAS** :
+- ~~`npm install && npm run build`~~
+- ~~`npm run build`~~
+
+### 2. Vérifier Start Command dans Render Dashboard
+
+**Build & Deploy** → **Start Command** doit être **EXACTEMENT** :
 ```bash
 cd .next/standalone && node server.js
 ```
 
-### 2. Pourquoi ce changement ?
+**PAS** :
+- ~~`node .next/standalone/server.js`~~ ❌
+- ~~`npm start`~~ ❌
+- ~~`node server.js`~~ ❌
 
-Le serveur Next.js standalone DOIT s'exécuter depuis son propre répertoire (`.next/standalone/`) pour que les chemins relatifs vers `./next/static/` fonctionnent correctement.
+### 3. Supprimer les Overrides (si présents)
 
-Quand vous exécutez `node .next/standalone/server.js` depuis la racine, le serveur cherche les fichiers statiques au mauvais endroit.
+Si vous voyez un message comme :
+> "This setting overrides render.yaml"
+
+Cliquez sur **"Clear"** ou **"Use render.yaml"** pour revenir à la configuration du fichier.
+
+## Solution IMMÉDIATE
+
+### Option A : Utiliser render.yaml (RECOMMANDÉ)
+
+1. Dans Render Dashboard → Settings
+2. **Build Command** : Cliquez "Clear" → laissez vide ou cliquez "Use render.yaml"
+3. **Start Command** : Cliquez "Clear" → laissez vide ou cliquez "Use render.yaml"  
+4. Save Changes
+5. **Manual Deploy**
+
+### Option B : Configuration manuelle
+
+Si vous préférez ne pas utiliser render.yaml :
+
+1. **Build Command** :
+   ```bash
+   chmod +x build.sh && ./build.sh
+   ```
+
+2. **Start Command** :
+   ```bash
+   cd .next/standalone && node server.js
+   ```
+
+3. Save Changes
+4. **Manual Deploy**
+
+## Diagnostic des Logs de Build
+
+Après le déploiement, vérifiez les **logs de build** Render pour cette section :
+
+```
+========================================
+🔍 FINAL BUILD DIAGNOSTIC
+========================================
+Working directory: /opt/render/project/src
+Static chunks: 114
+CSS files: 2
+BUILD_ID: [un hash]
+Static dir: EXISTS ✅
+
+Sample files in static/chunks:
+.next/standalone/.next/static/chunks/1517-xxx.js
+.next/standalone/.next/static/chunks/4046-xxx.js
+.next/standalone/.next/static/chunks/4bd1b696-xxx.js
+========================================
+```
+
+**Si vous voyez** :
+- `Static chunks: 0` → Le build n'a pas fonctionné
+- `Static dir: MISSING ❌` → La copie a échoué
+- `Sample files: No JS files found` → Problème de copie
+
+**Si tout est OK dans les logs** mais 404 persiste → Le Start Command est incorrect.
 
 ## Vérification Après Déploiement
 
