@@ -85,16 +85,35 @@ export function useUserInfo(): UserInfo {
         console.log('📥 useUserInfo: Response status:', response.status);
         
         if (response.ok) {
-          const data = await response.json();
-          console.log('✅ useUserInfo: Données reçues:', data);
+          // Log le texte brut avant de parser
+          const responseText = await response.text();
+          console.log('📄 useUserInfo: Response text brut (premiers 500 chars):', responseText.substring(0, 500));
           
-          if (isMounted) {
-            setUserInfo({
-              user: data.user,
-              loading: false,
-              isApproved: data.user?.isApproved || false,
-              isAdmin: data.user?.isAdmin || false
-            });
+          try {
+            const data = JSON.parse(responseText);
+            console.log('✅ useUserInfo: Données parsées avec succès');
+            
+            if (isMounted) {
+              setUserInfo({
+                user: data.user,
+                loading: false,
+                isApproved: data.user?.isApproved || false,
+                isAdmin: data.user?.isAdmin || false
+              });
+            }
+          } catch (parseError) {
+            console.error('❌ useUserInfo: Erreur parsing JSON:', parseError);
+            console.error('❌ useUserInfo: Type erreur:', parseError instanceof Error ? parseError.message : String(parseError));
+            console.error('❌ useUserInfo: Contenu complet:', responseText);
+            
+            if (isMounted) {
+              setUserInfo({
+                user: null,
+                loading: false,
+                isApproved: (session.user as any).isApproved || false,
+                isAdmin: (session.user as any).isAdmin || false
+              });
+            }
           }
         } else {
           console.warn('⚠️ useUserInfo: Response non-ok:', response.status);
