@@ -246,14 +246,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   //          EVENTS
   // --------------------------
   events: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user }) {
       console.log('🎉 Event: User signed in:', user.email);
     },
-    async signOut({ token }) {
-      console.log('👋 Event: User signed out:', token?.email);
-    },
-    async session({ session, token }) {
-      console.log('📱 Event: Session checked:', session.user.email);
+    async signOut() {
+      console.log('👋 Event: User signed out');
     },
   },
 });
