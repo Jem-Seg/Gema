@@ -34,11 +34,32 @@ function copyDir(src, dest) {
   return true;
 }
 
+// Function to count files recursively
+function countFiles(dir, extension) {
+  let count = 0;
+  
+  if (!fs.existsSync(dir)) return 0;
+  
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (let entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    
+    if (entry.isDirectory()) {
+      count += countFiles(fullPath, extension);
+    } else if (entry.name.endsWith(extension)) {
+      count++;
+    }
+  }
+  
+  return count;
+}
+
 // Copy static files
 console.log('Copying .next/static to .next/standalone/.next/static...');
 if (copyDir(sourceStatic, targetStatic)) {
-  const jsFiles = fs.readdirSync(path.join(targetStatic, 'chunks')).filter(f => f.endsWith('.js')).length;
-  const cssFiles = fs.readdirSync(path.join(targetStatic, 'css')).filter(f => f.endsWith('.css')).length;
+  const jsFiles = countFiles(targetStatic, '.js');
+  const cssFiles = countFiles(targetStatic, '.css');
   console.log(`✅ Static files copied: ${jsFiles} JS files, ${cssFiles} CSS files`);
 } else {
   console.error('❌ Failed to copy static files');
