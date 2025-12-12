@@ -44,12 +44,18 @@ export default function Home() {
     }
   }, [status, user]);
 
-  // Redirection vers dashboard si authentifié et approuvé (NON-ADMIN uniquement)
+  // Redirection vers dashboard selon le type d'utilisateur
   useEffect(() => {
-    if (status === 'authenticated' && userStatus && !userStatus.needsApproval) {
-      // Les admins ne sont PAS redirigés ici (ils vont directement sur /admin/dashboard)
-      // Seuls les non-admins approuvés avec rôle vont sur /dashboard
-      if (!isAdmin) {
+    if (status === 'authenticated' && userStatus) {
+      // Admin → redirection vers /admin/dashboard
+      if (isAdmin) {
+        console.log('Admin detected, redirecting to /admin/dashboard');
+        router.push('/admin/dashboard');
+        return;
+      }
+      
+      // Non-admin approuvé avec rôle → redirection vers /dashboard
+      if (!userStatus.needsApproval) {
         console.log('Non-admin approved, redirecting to /dashboard');
         router.push('/dashboard');
       }
