@@ -47,27 +47,28 @@ declare module "next-auth/jwt" {
 //    CONFIGURATION NEXTAUTH
 // ==========================
 
-// Vérification des variables d'environnement critiques
-if (!process.env.NEXTAUTH_SECRET) {
-  console.error('❌ NEXTAUTH_SECRET non défini !');
-  throw new Error('NEXTAUTH_SECRET est requis');
-}
+// Vérification et log des variables d'environnement
+const secret = process.env.NEXTAUTH_SECRET;
+const authUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
-console.log('✅ NextAuth configuré avec secret:', process.env.NEXTAUTH_SECRET?.substring(0, 10) + '...');
+if (!secret) {
+  console.error('❌ ATTENTION: NEXTAUTH_SECRET non défini !');
+  console.error('   NextAuth utilisera un secret par défaut (NON SÉCURISÉ)');
+} else {
+  console.log('✅ NextAuth configuré avec secret:', secret.substring(0, 10) + '...');
+  console.log('✅ NextAuth URL:', authUrl);
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   basePath: "/api/auth",
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: secret || 'fallback-secret-for-development-only',
   
   // Pages personnalisées
   pages: {
     signIn: '/sign-in',
-    error: '/sign-in', // Rediriger les erreurs vers sign-in
+    error: '/sign-in',
   },
-  
-  // Debug en développement
-  debug: process.env.NODE_ENV === 'development',
 
   // --------------------------
   //        PROVIDER
