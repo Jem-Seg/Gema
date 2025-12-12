@@ -41,50 +41,63 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
+    console.log('🏠 Admin Dashboard: useEffect appelé, status:', status);
+    
     // Attendre que le status soit chargé
     if (status === 'loading') {
+      console.log('⏳ Status loading, en attente...');
       return;
     }
 
     // Si pas authentifié, rediriger vers sign-in
     if (status === 'unauthenticated') {
+      console.log('❌ Non authentifié, redirection vers /sign-in');
       router.push('/sign-in');
       return;
     }
 
     // Si authentifié mais pas encore de user dans la session, attendre
     if (status === 'authenticated' && !user) {
+      console.log('⏳ Authentifié mais pas de user, en attente...');
       return;
     }
 
     // Si authentifié avec user, vérifier les permissions admin
     if (status === 'authenticated' && user) {
+      console.log('✅ Authentifié avec user:', user.email);
       const verifyAdmin = async () => {
         try {
+          console.log('🔍 Vérification statut admin...');
           const response = await fetch('/api/admin/verify');
           const data = await response.json();
+          console.log('📋 Réponse /api/admin/verify:', data);
           
           if (!data.isAdmin) {
+            console.log('❌ Pas admin, redirection vers /admin/verify');
             router.push('/admin/verify');
             return;
           }
           
+          console.log('✅ Admin confirmé');
           setIsAdmin(true);
           
           // Récupérer les statistiques
           try {
+            console.log('📊 Récupération statistiques...');
             const statsResponse = await fetch('/api/admin/stats');
             if (statsResponse.ok) {
               const statsData = await statsResponse.json();
+              console.log('✅ Statistiques reçues:', statsData.stats);
               setStats(statsData.stats);
             }
           } catch (error) {
-            console.error('Erreur récupération statistiques:', error);
+            console.error('❌ Erreur récupération statistiques:', error);
           }
         } catch (error) {
-          console.error('Erreur vérification admin:', error);
+          console.error('❌ Erreur vérification admin:', error);
           router.push('/admin/verify');
         } finally {
+          console.log('🏁 Vérification terminée, setLoading(false)');
           setLoading(false);
         }
       };

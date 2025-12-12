@@ -42,9 +42,11 @@ const SignInPage = () => {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
         
-        // Redirection immédiate sans délai pour éviter les problèmes de timing
-        console.log('🔀 Redirection immédiate vers /post-sign-in')
-        window.location.replace('/post-sign-in')
+        // Redirection immédiate avec URL absolue pour éviter les problèmes
+        const baseUrl = window.location.origin;
+        const redirectUrl = `${baseUrl}/post-sign-in`;
+        console.log('🔀 Redirection immédiate vers:', redirectUrl)
+        window.location.href = redirectUrl
       } else {
         // Cas inattendu - même si pas d'erreur explicite, on redirige quand même
         console.warn('⚠️ Résultat inattendu mais pas d\'erreur - tentative de redirection:', result)
