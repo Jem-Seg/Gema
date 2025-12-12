@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
 import prisma from "@/lib/prisma";
 
-// ❌ SUPPRIMÉ : import { checkAdminStatus } from '@/lib/auth';
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const user = await requireAdmin();
-
     if (!user) {
       return NextResponse.json(
         { error: "Non authentifié" },
@@ -22,8 +19,7 @@ export async function PUT(
     const { name, description, abreviation, ministereId } =
       await request.json();
 
-    // Validation du nom
-    if (!name || typeof name !== "string" || name.trim().length === 0) {
+    if (!name || typeof name !== "string") {
       return NextResponse.json(
         { error: "Le nom de la structure est obligatoire" },
         { status: 400 }
@@ -37,19 +33,14 @@ export async function PUT(
       );
     }
 
-    // Vérifier que la structure existe
-    const existingStructure = await prisma.structure.findUnique({
-      where: { id },
-    });
-
-    if (!existingStructure) {
+    const structure = await prisma.structure.findUnique({ where: { id } });
+    if (!structure) {
       return NextResponse.json(
         { error: "Structure non trouvée" },
         { status: 404 }
       );
     }
 
-    // Vérifier ministère valide
     const ministere = await prisma.ministere.findUnique({
       where: { id: ministereId },
     });
@@ -61,7 +52,6 @@ export async function PUT(
       );
     }
 
-    // Vérifier unicité du nom
     const duplicate = await prisma.structure.findFirst({
       where: {
         name: name.trim(),
@@ -80,7 +70,6 @@ export async function PUT(
       );
     }
 
-    // Mise à jour
     const updated = await prisma.structure.update({
       where: { id },
       data: {
@@ -91,22 +80,21 @@ export async function PUT(
       },
       include: {
         ministere: {
-          select: {
-            id: true,
-            name: true,
-            abreviation: true,
-          },
+          select: { id: true, name: true, abreviation: true },
         },
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      message: "Structure mise à jour avec succès",
-      structure: updated,
-    });
-  } catch (error) {
-    console.error("Erreur mise à jour structure:", error);
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Structure mise à jour avec succès",
+        structure: updated,
+      },
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error("Erreur mise à jour structure:", err);
     return NextResponse.json(
       { error: "Erreur serveur interne" },
       { status: 500 }
@@ -120,7 +108,6 @@ export async function DELETE(
 ) {
   try {
     const user = await requireAdmin();
-
     if (!user) {
       return NextResponse.json(
         { error: "Non authentifié" },
@@ -130,27 +117,23 @@ export async function DELETE(
 
     const { id } = params;
 
-    // Vérifier existence
-    const existing = await prisma.structure.findUnique({
-      where: { id },
-    });
+    const structure = await prisma.structure.findUnique({ where: { id } });
 
-    if (!existing) {
+    if (!structure) {
       return NextResponse.json(
         { error: "Structure non trouvée" },
         { status: 404 }
       );
     }
 
-    // Suppression
     await prisma.structure.delete({ where: { id } });
 
     return NextResponse.json({
       success: true,
       message: "Structure supprimée avec succès",
     });
-  } catch (error) {
-    console.error("Erreur suppression structure:", error);
+  } catch (err) {
+    console.error("Erreur suppression structure:", err);
     return NextResponse.json(
       { error: "Erreur serveur interne" },
       { status: 500 }
