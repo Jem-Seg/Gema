@@ -80,7 +80,12 @@ export function useUserInfo(): UserInfo {
         console.log('🔍 useUserInfo: Récupération infos pour user ID:', userId);
 
         // Récupérer les informations complètes de l'utilisateur depuis la base de données
-        const response = await fetch(`/api/user/${userId}`);
+        const response = await fetch(`/api/user/${userId}`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
         
         console.log('📥 useUserInfo: Response status:', response.status);
         

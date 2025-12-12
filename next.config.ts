@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
 
   // Strict mode pour détection bugs React
   reactStrictMode: true,
+  
+  // Désactiver le cache pour forcer rebuild
+  generateBuildId: async () => {
+    return `build-${Date.now()}`;
+  },
 
   // Configuration Server Actions
   experimental: {
