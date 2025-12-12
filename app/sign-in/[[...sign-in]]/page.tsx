@@ -42,13 +42,10 @@ const SignInPage = () => {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
         
-        // Attendre que la session soit établie avant de rediriger
-        console.log('⏳ Attente 800ms pour établir la session...')
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        // Redirection vers post-sign-in
-        console.log('🔀 Redirection vers /post-sign-in')
-        router.push('/post-sign-in')
+        // Le middleware va automatiquement rediriger vers /post-sign-in
+        // Pas besoin de rediriger manuellement, juste recharger la page
+        console.log('🔄 Rechargement de la page pour déclencher middleware redirect')
+        window.location.reload()
       } else {
         // Cas inattendu
         console.warn('⚠️ Résultat inattendu:', result)
