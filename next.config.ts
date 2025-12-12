@@ -3,18 +3,23 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Configuration pour déploiement production optimisé
   output: 'standalone',
-  
-  // Strict mode activé pour détection bugs React
+
+  // CRITIQUE: Désactiver Turbopack pour production (instable en Next.js 16)
+  // Turbopack cause erreurs 404 sur chunks JS en production
+  ...(process.env.NODE_ENV === 'production' && {
+    webpack: (config) => config,
+  }),
+
+  // Strict mode pour détection bugs React
   reactStrictMode: true,
-  
-  // Désactiver prerendering pour pages dynamiques
+
+  // Configuration Server Actions
   experimental: {
-    // Server Actions configuration
     serverActions: {
       bodySizeLimit: '2mb',
     },
   },
-  
+
   // Configuration images sécurisée
   images: {
     remotePatterns: [
@@ -50,11 +55,11 @@ const nextConfig: NextConfig = {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,
   },
-  
+
   // Optimisations production
   compress: true,
   poweredByHeader: false, // Sécurité : masquer header "X-Powered-By"
-  
+
   // Headers de sécurité
   async headers() {
     return [
