@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && npm run postbuild",
+    "postbuild": "node scripts/copy-static.js",
     "start": "node .next/standalone/server.js",
     "start:dev": "next start -p ${PORT:-3000}",
     "lint": "eslint",
