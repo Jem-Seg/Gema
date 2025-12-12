@@ -19,7 +19,7 @@ export default function PostSignInPage() {
     // Si pas authentifié, retour à sign-in
     if (status === 'unauthenticated') {
       console.log('Not authenticated, redirecting to sign-in');
-      router.push('/sign-in');
+      window.location.href = '/sign-in';
       return;
     }
 
@@ -30,25 +30,25 @@ export default function PostSignInPage() {
       const isApproved = user.isApproved;
       const hasRole = !!user.roleId;
       
-      console.log('Authenticated, user status:', { isAdmin, isApproved, hasRole });
+      console.log('Authenticated, user status:', { isAdmin, isApproved, hasRole, user });
       
       // Admin → dashboard admin
       if (isAdmin) {
         console.log('Redirecting admin to /admin/dashboard');
-        router.push('/admin/dashboard');
+        window.location.href = '/admin/dashboard';
       } 
       // Non-admin approuvé avec rôle → dashboard utilisateur
       else if (isApproved && hasRole) {
         console.log('Redirecting approved user to /dashboard');
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }
       // Non-admin non approuvé ou sans rôle → page d'attente avec option clé admin
       else {
         console.log('Redirecting non-approved user to /admin/verify');
-        router.push('/admin/verify');
+        window.location.href = '/admin/verify';
       }
     }
-  }, [status, router, session]);
+  }, [status, session]);
 
   // Afficher un loader pendant le traitement
   return (

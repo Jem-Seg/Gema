@@ -154,19 +154,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       return session;
     },
-
-    // --------------------------
-    //    REDIRECTION APRES LOGIN
-    // --------------------------
-    async redirect({ baseUrl, url }) {
-      // Par défaut, rediriger vers dashboard si l'URL demandée est relative
-      if (url.startsWith('/')) return `${baseUrl}${url}`;
-
-      // Si l'URL est absolue et correspond au baseUrl, autoriser
-      if (url.startsWith(baseUrl)) return url;
-
-      // Sinon, rediriger vers dashboard
-      return `${baseUrl}/dashboard`;
-    },
   },
 });

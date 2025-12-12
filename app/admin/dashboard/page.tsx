@@ -41,49 +41,57 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    const verifyAdmin = async () => {
-      try {
-        const response = await fetch('/api/admin/verify');
-        const data = await response.json();
-        
-        if (!data.isAdmin) {
-          router.push('/admin/verify');
-          return;
-        }
-        
-        setIsAdmin(true);
-        
-        // Récupérer les statistiques
+    // Attendre que le status soit chargé
+    if (status === 'loading') {
+      return;
+    }
+
+    // Si pas authentifié, rediriger vers sign-in
+    if (status === 'unauthenticated') {
+      router.push('/sign-in');
+      return;
+    }
+
+    // Si authentifié mais pas encore de user dans la session, attendre
+    if (status === 'authenticated' && !user) {
+      return;
+    }
+
+    // Si authentifié avec user, vérifier les permissions admin
+    if (status === 'authenticated' && user) {
+      const verifyAdmin = async () => {
         try {
-          const statsResponse = await fetch('/api/admin/stats');
-          if (statsResponse.ok) {
-            const statsData = await statsResponse.json();
-            setStats(statsData.stats);
+          const response = await fetch('/api/admin/verify');
+          const data = await response.json();
+          
+          if (!data.isAdmin) {
+            router.push('/admin/verify');
+            return;
+          }
+          
+          setIsAdmin(true);
+          
+          // Récupérer les statistiques
+          try {
+            const statsResponse = await fetch('/api/admin/stats');
+            if (statsResponse.ok) {
+              const statsData = await statsResponse.json();
+              setStats(statsData.stats);
+            }
+          } catch (error) {
+            console.error('Erreur récupération statistiques:', error);
           }
         } catch (error) {
-          console.error('Erreur récupération statistiques:', error);
+          console.error('Erreur vérification admin:', error);
+          router.push('/admin/verify');
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Erreur vérification admin:', error);
-        router.push('/admin/verify');
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
 
-    const checkAndVerify = async () => {
-      if (status === 'authenticated' && !user) {
-        router.push('/sign-in');
-        return;
-      }
-
-      if (status === 'authenticated' && user) {
-        await verifyAdmin();
-      }
-    };
-
-    checkAndVerify();
-  }, [status === 'authenticated', user, router]);
+      verifyAdmin();
+    }
+  }, [status, user, router]);
 
 
 
