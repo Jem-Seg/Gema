@@ -64,7 +64,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
 
       async authorize(credentials) {
+        console.log('🔐 Tentative de connexion pour:', credentials?.email);
+        
         if (!credentials?.email || !credentials?.password) {
+          console.log('❌ Credentials manquantes');
           throw new Error("Email et mot de passe requis");
         }
 
@@ -72,9 +75,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email: credentials.email as string },
         });
 
-        if (!user || !user.password) {
+        if (!user) {
+          console.log('❌ Utilisateur non trouvé:', credentials.email);
           throw new Error("Email ou mot de passe incorrect");
         }
+
+        if (!user.password) {
+          console.log('❌ Pas de mot de passe pour:', credentials.email);
+          throw new Error("Email ou mot de passe incorrect");
+        }
+
+        console.log('👤 Utilisateur trouvé:', {
+          email: user.email,
+          isAdmin: user.isAdmin,
+          isApproved: user.isApproved,
+          hasPassword: !!user.password
+        });
 
         const isValid = await bcrypt.compare(
           credentials.password as string,
@@ -82,8 +98,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
 
         if (!isValid) {
+          console.log('❌ Mot de passe invalide pour:', credentials.email);
           throw new Error("Email ou mot de passe incorrect");
         }
+
+        console.log('✅ Authentification réussie pour:', credentials.email);
 
         // Renvoi des valeurs attendues par JWT + Session
         return {

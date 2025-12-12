@@ -17,31 +17,36 @@ const SignInPage = () => {
     setLoading(true)
 
     try {
+      console.log('🔄 Tentative de connexion avec:', email)
+      
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       })
 
-      console.log('SignIn result:', result) // Debug
+      console.log('📥 SignIn result:', result) // Debug
 
       if (result?.error) {
+        console.error('❌ Erreur de connexion:', result.error)
         toast.error('Email ou mot de passe incorrect')
         setLoading(false)
       } else if (result?.ok) {
+        console.log('✅ Connexion réussie, redirection dans 800ms...')
         toast.success('Connexion réussie !')
         // Attendre un peu que la session soit enregistrée, puis rediriger
         // Ne pas setLoading(false) pour garder le spinner
         await new Promise(resolve => setTimeout(resolve, 800))
+        console.log('🔀 Redirection vers /post-sign-in')
         window.location.href = '/post-sign-in'
       } else {
         // Cas inattendu
-        console.error('Résultat inattendu:', result)
+        console.error('⚠️ Résultat inattendu:', result)
         toast.error('Une erreur est survenue lors de la connexion')
         setLoading(false)
       }
     } catch (error) {
-      console.error('Erreur de connexion:', error)
+      console.error('💥 Erreur de connexion:', error)
       toast.error('Une erreur est survenue')
       setLoading(false)
     }
