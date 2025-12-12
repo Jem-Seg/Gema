@@ -1,8 +1,9 @@
 // Script pour vérifier et créer un compte administrateur
-// Utilisation: node scripts/check-admin.mjs
+// Utilisation: node --loader ts-node/esm scripts/check-admin.ts
+// OU depuis la racine: npm run check-admin
 
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { PrismaClient } from '../node_modules/@prisma/client/index.js';
+import bcrypt from '../node_modules/bcryptjs/index.js';
 
 const prisma = new PrismaClient();
 
