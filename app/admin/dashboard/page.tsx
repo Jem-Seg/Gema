@@ -43,11 +43,11 @@ export default function AdminDashboard() {
 
   // Attendre un peu avant de commencer à vérifier
   useEffect(() => {
-    console.log('⏰ Dashboard: Initialisation, attente 300ms...');
+    console.log('⏰ Dashboard: Initialisation, attente 500ms...');
     const timer = setTimeout(() => {
       console.log('✅ Dashboard: Prêt à vérifier');
       setIsReady(true);
-    }, 300);
+    }, 500);
     
     return () => clearTimeout(timer);
   }, []);
