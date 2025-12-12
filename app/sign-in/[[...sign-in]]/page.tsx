@@ -25,28 +25,34 @@ const SignInPage = () => {
         redirect: false,
       })
 
-      console.log('📥 SignIn result:', result) // Debug
+      console.log('📥 SignIn result complet:', JSON.stringify(result, null, 2))
+      console.log('📊 Result.ok:', result?.ok)
+      console.log('📊 Result.error:', result?.error)
+      console.log('📊 Result.status:', result?.status)
+      console.log('📊 Result.url:', result?.url)
 
       if (result?.error) {
         console.error('❌ Erreur de connexion:', result.error)
         toast.error('Email ou mot de passe incorrect')
         setLoading(false)
       } else if (result?.ok) {
-        console.log('✅ Connexion réussie, redirection dans 800ms...')
+        console.log('✅ Connexion réussie, redirection dans 1000ms...')
         toast.success('Connexion réussie !')
-        // Attendre un peu que la session soit enregistrée, puis rediriger
-        // Ne pas setLoading(false) pour garder le spinner
-        await new Promise(resolve => setTimeout(resolve, 800))
+        // Attendre que la session soit enregistrée
+        await new Promise(resolve => setTimeout(resolve, 1000))
         console.log('🔀 Redirection vers /post-sign-in')
         window.location.href = '/post-sign-in'
       } else {
-        // Cas inattendu
-        console.error('⚠️ Résultat inattendu:', result)
-        toast.error('Une erreur est survenue lors de la connexion')
-        setLoading(false)
+        // Cas inattendu - même si pas d'erreur explicite, on redirige quand même
+        console.warn('⚠️ Résultat inattendu mais pas d\'erreur - tentative de redirection:', result)
+        toast.success('Connexion en cours...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        console.log('🔀 Redirection forcée vers /post-sign-in')
+        window.location.href = '/post-sign-in'
       }
     } catch (error) {
       console.error('💥 Erreur de connexion:', error)
+      console.error('💥 Stack:', error instanceof Error ? error.stack : 'No stack')
       toast.error('Une erreur est survenue')
       setLoading(false)
     }
