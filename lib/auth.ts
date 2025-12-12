@@ -1,47 +1,91 @@
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
-import prisma from './prisma'
-import { auth as getAuth } from '@/lib/auth'
+// ==========================
+// lib/auth.ts (VERSION STABLE)
+// ==========================
 
-// === CONFIGURATION NEXTAUTH ===
-export const { handlers, signIn, signOut, auth } = NextAuth({
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import prisma from "./prisma";
+
+// Compatibilité TypeScript : étendre les types Session et JWT
+declare module "next-auth" {
+  interface User {
+    id: string;
+    isAdmin: boolean;
+    isApproved: boolean;
+    roleId: string | null;
+    ministereId: string | null;
+  }
+
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      isAdmin: boolean;
+      isApproved: boolean;
+      roleId: string | null;
+      ministereId: string | null;
+    };
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    email: string;
+    name: string;
+    isAdmin: boolean;
+    isApproved: boolean;
+    roleId: string | null;
+    ministereId: string | null;
+    lastRefresh: number;
+  }
+}
+
+// ==========================
+//    CONFIGURATION NEXTAUTH
+// ==========================
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  basePath: '/api/auth',
+  basePath: "/api/auth",
+  secret: process.env.NEXTAUTH_SECRET,
 
+  // --------------------------
+  //        PROVIDER
+  // --------------------------
   providers: [
-    CredentialsProvider({
-      name: 'Credentials',
+    Credentials({
+      name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Mot de passe", type: "password" }
+        password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(credentials) {
-        const email = credentials?.email as string | undefined
-        const password = credentials?.password as string | undefined
 
-        if (!email || !password) {
-          throw new Error("Email et mot de passe requis")
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email et mot de passe requis");
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: email },
-          include: {
-            role: true,
-            ministere: true,
-          },
-        })
+          where: { email: credentials.email },
+        });
 
         if (!user || !user.password) {
-          throw new Error("Email ou mot de passe incorrect")
+          throw new Error("Email ou mot de passe incorrect");
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password)
+        const isValid = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
 
-        if (!isPasswordValid) {
-          throw new Error("Email ou mot de passe incorrect")
+        if (!isValid) {
+          throw new Error("Email ou mot de passe incorrect");
         }
 
+        // Renvoi des valeurs attendues par JWT + Session
         return {
           id: user.id,
           email: user.email,
@@ -50,137 +94,81 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           isApproved: user.isApproved,
           roleId: user.roleId,
           ministereId: user.ministereId,
-        }
-      }
-    })
+        };
+      },
+    }),
   ],
 
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60
-  },
+  // --------------------------
+  //          JWT
+  // --------------------------
+  session: { strategy: "jwt" },
 
-  pages: {
-    signIn: "/sign-in",
-    signOut: "/sign-in",
-    error: "/sign-in"
-  },
-
-  // === CALLBACKS HOLISTIQUES (100% VALIDÉS) ===
   callbacks: {
-    // ---- JWT ----
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
+      // Lors de la connexion, ajouter les données utilisateur
       if (user) {
-        const u = user as any
-        token.id = u.id
-        token.isAdmin = u.isAdmin
-        token.isApproved = u.isApproved
-        token.roleId = u.roleId
-        token.ministereId = u.ministereId
-        token.lastRefresh = Date.now()
+        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.isAdmin = user.isAdmin;
+        token.isApproved = user.isApproved;
+        token.roleId = user.roleId;
+        token.ministereId = user.ministereId;
+        token.lastRefresh = Date.now();
       }
 
-      const needsRefresh =
-        !token.lastRefresh ||
-        Date.now() - (token.lastRefresh as number) > 5 * 60 * 1000
+      // Rafraîchir les données de la BD toutes les 5 minutes
+      if (Date.now() - (token.lastRefresh ?? 0) > 5 * 60 * 1000) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id },
+        });
 
-      if (token.id && needsRefresh && trigger !== "signIn") {
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: {
-              isAdmin: true,
-              isApproved: true,
-              roleId: true,
-              ministereId: true
-            }
-          })
-
-          if (dbUser) {
-            token.isAdmin = dbUser.isAdmin
-            token.isApproved = dbUser.isApproved
-            token.roleId = dbUser.roleId
-            token.ministereId = dbUser.ministereId
-            token.lastRefresh = Date.now()
-          }
-        } catch (err) {
-          console.error("JWT refresh error:", err)
+        if (dbUser) {
+          token.isAdmin = dbUser.isAdmin;
+          token.isApproved = dbUser.isApproved;
+          token.roleId = dbUser.roleId;
+          token.ministereId = dbUser.ministereId;
         }
+
+        token.lastRefresh = Date.now();
       }
 
-      return token
+      return token;
     },
 
-    // ---- SESSION ----
+    // --------------------------
+    //      SESSION CALLBACK
+    // --------------------------
     async session({ session, token }) {
-      const t = token as any
+      session.user = {
+        id: token.id,
+        email: token.email,
+        name: token.name,
+        isAdmin: token.isAdmin,
+        isApproved: token.isApproved,
+        roleId: token.roleId,
+        ministereId: token.ministereId,
+      };
 
-      if (session.user) {
-        const u = session.user as any
-        u.id = t.id
-        u.isAdmin = t.isAdmin
-        u.isApproved = t.isApproved
-        u.roleId = t.roleId
-        u.ministereId = t.ministereId
-      }
-
-      return session
+      return session;
     },
 
-    // ---- REDIRECTION GLOBALE ----
-    async redirect({ baseUrl }) {
-      const session = await getAuth()
+    // --------------------------
+    //    REDIRECTION APRES LOGIN
+    // --------------------------
+    async redirect({ baseUrl, url, token }) {
+      // Pas de token → rester sur sign-in
+      if (!token) return `${baseUrl}/sign-in`;
 
-      // Non connecté → page login
-      if (!session || !session.user) {
-        return `${baseUrl}/sign-in`
-      }
+      // Cas 1 : admin
+      if (token.isAdmin) return `${baseUrl}/admin/dashboard`;
 
-      // IMPORTANT : Forcer le typage ici !!
-      const user = session.user as any
+      // Cas 2 : utilisateur non approuvé
+      if (!token.isApproved) return `${baseUrl}/pending-approval`;
 
-      // ADMIN
-      if (user.isAdmin) {
-        return `${baseUrl}/admin/dashboard`
-      }
-
-      // NON APPROUVÉ PAR L'ADMIN
-      if (!user.isApproved) {
-        return `${baseUrl}/pending-approval`
-      }
-
-      // UTILISATEUR SIMPLE
-      return `${baseUrl}/dashboard`
-    }
+      // Cas 3 : utilisateur normal approuvé
+      return `${baseUrl}/dashboard`;
+    },
   },
-
-  secret: process.env.NEXTAUTH_SECRET,
-})
-
-// === EXPORTS ===
-export const GET = handlers.GET
-export const POST = handlers.POST
-
-// === CHECK ADMIN STATUS (utilisé dans /api/admin/verify) ===
-export async function checkAdminStatus(userId: string, secretKey?: string) {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user) return false
-
-    if (user.isAdmin) return true
-
-    if (secretKey && secretKey === process.env.ADMIN_SECRET_KEY) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { isAdmin: true, isApproved: true }
-      })
-      return true
-    }
-
-    return false
-
-  } catch (e) {
-    console.error("Erreur checkAdminStatus:", e)
-    return false
-  }
-}
+});

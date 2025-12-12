@@ -1,5 +1,6 @@
-export const GET = () => new Response("NEXTAUTH ROUTE OK", { status: 200 });
-export const POST = () => new Response("NEXTAUTH ROUTE OK", { status: 200 });
+import { handlers } from "@/lib/auth";
+
+export const { GET, POST } = handlers;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
