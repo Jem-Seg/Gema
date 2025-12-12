@@ -61,11 +61,32 @@ export function useUserInfo(): UserInfo {
       }
 
       try {
+        // Vérifier que l'ID existe et est valide
+        const userId = (session.user as any).id;
+        
+        if (!userId) {
+          console.warn('⚠️ useUserInfo: ID utilisateur manquant dans la session');
+          if (isMounted) {
+            setUserInfo({
+              user: null,
+              loading: false,
+              isApproved: (session.user as any).isApproved || false,
+              isAdmin: (session.user as any).isAdmin || false
+            });
+          }
+          return;
+        }
+
+        console.log('🔍 useUserInfo: Récupération infos pour user ID:', userId);
+
         // Récupérer les informations complètes de l'utilisateur depuis la base de données
-        const response = await fetch(`/api/user/${session.user.id}`);
+        const response = await fetch(`/api/user/${userId}`);
+        
+        console.log('📥 useUserInfo: Response status:', response.status);
         
         if (response.ok) {
           const data = await response.json();
+          console.log('✅ useUserInfo: Données reçues:', data);
           
           if (isMounted) {
             setUserInfo({
@@ -76,6 +97,10 @@ export function useUserInfo(): UserInfo {
             });
           }
         } else {
+          console.warn('⚠️ useUserInfo: Response non-ok:', response.status);
+          const errorText = await response.text();
+          console.warn('⚠️ useUserInfo: Error body:', errorText);
+          
           if (isMounted) {
             setUserInfo({
               user: null,
@@ -86,7 +111,9 @@ export function useUserInfo(): UserInfo {
           }
         }
       } catch (error) {
-        console.error('Erreur récupération infos utilisateur:', error);
+        console.error('❌ Erreur récupération infos utilisateur:', error);
+        console.error('❌ Type erreur:', error instanceof Error ? error.message : String(error));
+        
         if (isMounted) {
           setUserInfo({
             user: null,

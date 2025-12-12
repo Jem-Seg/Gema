@@ -8,14 +8,20 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    
+    console.log('📥 API /api/user/[id]: Récupération user ID:', id);
+    
     const session = await auth()
 
     if (!session?.user) {
+      console.warn('⚠️ API /api/user/[id]: Non authentifié');
       return NextResponse.json(
         { message: 'Non authentifié' },
         { status: 401 }
       )
     }
+
+    console.log('✅ API /api/user/[id]: Session valide, recherche user...');
 
     const user = await prisma.user.findUnique({
       where: { id },
@@ -45,6 +51,7 @@ export async function GET(
     });
 
     if (!user) {
+      console.warn('⚠️ API /api/user/[id]: Utilisateur non trouvé:', id);
       return NextResponse.json(
         { message: 'Utilisateur non trouvé' },
         { status: 404 }
@@ -135,9 +142,10 @@ export async function GET(
 
     return NextResponse.json({ user, structures })
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'utilisateur:', error)
+    console.error('❌ API /api/user/[id]: Erreur:', error);
+    console.error('❌ API /api/user/[id]: Type erreur:', error instanceof Error ? error.message : String(error));
     return NextResponse.json(
-      { message: 'Erreur serveur' },
+      { message: 'Erreur serveur', error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }
