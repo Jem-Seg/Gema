@@ -64,6 +64,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   basePath: "/api/auth",
   secret: secret || 'fallback-secret-for-development-only',
   
+  // Configuration des cookies pour HTTPS
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' 
+        ? '__Secure-next-auth.session-token'
+        : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
+  
   // Pages personnalisées
   pages: {
     signIn: '/sign-in',
@@ -71,7 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   
   // Debug mode en développement
-  debug: process.env.NODE_ENV === 'development',
+  debug: true, // Activé même en production pour diagnostic
   
   // Logger pour capturer les erreurs
   logger: {
