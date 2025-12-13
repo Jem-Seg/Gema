@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { randomBytes } from 'crypto'
+import { sendResetPasswordEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,6 +55,25 @@ export async function POST(request: NextRequest) {
     // Next.js définit automatiquement NODE_ENV mais on vérifie aussi l'URL
     const isDevelopment = process.env.NODE_ENV !== 'production' || resetLink.includes('localhost')
     
+    // Essayer d'envoyer l'email en production
+    let emailSent = false;
+    let emailError = null;
+
+    if (!isDevelopment) {
+      try {
+        await sendResetPasswordEmail({
+          to: email.toLowerCase(),
+          resetLink
+        });
+        emailSent = true;
+        console.log(`✅ Email de réinitialisation envoyé à: ${email}`);
+      } catch (error) {
+        console.error('❌ Erreur envoi email:', error);
+        emailError = error;
+        // Ne pas bloquer la requête si l'email échoue, juste logger
+      }
+    }
+    
     if (isDevelopment) {
       console.log('\n=========================================')
       console.log('🔐 LIEN DE RÉINITIALISATION DE MOT DE PASSE')
@@ -68,7 +88,9 @@ export async function POST(request: NextRequest) {
       success: true,
       message: isDevelopment 
         ? 'Lien de réinitialisation généré ! (Voir ci-dessous en mode développement)'
-        : 'Si cet email existe, un lien de réinitialisation a été envoyé.',
+        : emailSent 
+          ? 'Un email avec un lien de réinitialisation a été envoyé à votre adresse.'
+          : 'Le lien de réinitialisation a été généré. Si l\'email n\'arrive pas, contactez l\'administrateur.',
       // En développement seulement
       developmentLink: isDevelopment ? resetLink : undefined
     })
