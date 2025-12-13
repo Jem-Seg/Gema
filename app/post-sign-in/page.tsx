@@ -41,11 +41,25 @@ export default function PostSignInPage() {
       
       hasRedirected.current = true;
       
-      // Utiliser window.location.href pour forcer une navigation complète
       // Admin → dashboard admin
       if (isAdmin) {
-        console.log('Redirecting admin to /admin/dashboard');
+        console.log('🎯 Redirecting admin to /admin/dashboard');
+        console.log('🔧 Using aggressive navigation strategy');
+        
+        // Stratégie 1: Essayer window.location.href
         window.location.href = '/admin/dashboard';
+        
+        // Stratégie 2: Forcer avec replace après 100ms au cas où href ne marche pas
+        setTimeout(() => {
+          console.log('⏰ Timeout fallback - forcing navigation');
+          window.location.replace('/admin/dashboard');
+        }, 100);
+        
+        // Stratégie 3: Dernier recours après 200ms
+        setTimeout(() => {
+          console.log('🚨 Last resort - assigning directly');
+          window.location.assign('/admin/dashboard');
+        }, 200);
       } 
       // Non-admin approuvé avec rôle → dashboard utilisateur
       else if (isApproved && hasRole) {
