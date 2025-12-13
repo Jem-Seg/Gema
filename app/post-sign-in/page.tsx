@@ -43,23 +43,24 @@ export default function PostSignInPage() {
       
       // Admin → dashboard admin
       if (isAdmin) {
-        console.log('🎯 Redirecting admin to /admin/dashboard');
-        console.log('🔧 Using aggressive navigation strategy');
+        console.log('🎯 Admin detected - immediate forced navigation');
         
-        // Stratégie 1: Essayer window.location.href
-        window.location.href = '/admin/dashboard';
-        
-        // Stratégie 2: Forcer avec replace après 100ms au cas où href ne marche pas
-        setTimeout(() => {
-          console.log('⏰ Timeout fallback - forcing navigation');
+        // NOUVELLE STRATÉGIE: Navigation immédiate synchrone sans délai
+        // Ignorer toute erreur et forcer la navigation
+        try {
+          // Bloquer toutes les futures exécutions de code
+          (window as any).__adminRedirect = true;
+          
+          // Navigation forcée immédiate
           window.location.replace('/admin/dashboard');
-        }, 100);
-        
-        // Stratégie 3: Dernier recours après 200ms
-        setTimeout(() => {
-          console.log('🚨 Last resort - assigning directly');
-          window.location.assign('/admin/dashboard');
-        }, 200);
+          
+          // Stop l'exécution
+          return;
+        } catch (e) {
+          console.error('Navigation error:', e);
+          // Fallback ultime
+          window.location.href = '/admin/dashboard';
+        }
       } 
       // Non-admin approuvé avec rôle → dashboard utilisateur
       else if (isApproved && hasRole) {
