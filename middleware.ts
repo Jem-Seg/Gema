@@ -18,6 +18,16 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET 
   })
 
+  // LOG TEMPORAIRE pour debug
+  if (pathname === '/sign-in' || pathname === '/post-sign-in' || pathname === '/admin/dashboard') {
+    console.log('🛡️ Middleware:', {
+      pathname,
+      hasToken: !!token,
+      tokenEmail: token?.email || 'N/A',
+      cookies: request.cookies.getAll().map(c => c.name),
+    });
+  }
+
   const isAuthPage = request.nextUrl.pathname.startsWith('/sign-in') || 
                      request.nextUrl.pathname.startsWith('/sign-up') ||
                      request.nextUrl.pathname.startsWith('/reset-password')
