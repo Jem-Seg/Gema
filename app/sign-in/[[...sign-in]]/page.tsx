@@ -32,6 +32,13 @@ const SignInPage = () => {
       } else if (result?.ok) {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
+        
+        // Attendre 2 secondes pour que le cookie soit bien enregistré
+        console.log('⏳ Attente 2s pour création cookie...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('🔄 Cookies après connexion:', document.cookie);
+        
         // Redirection vers post-sign-in qui gère le routing
         window.location.href = '/post-sign-in'
       }
