@@ -15,7 +15,8 @@ export async function middleware(request: NextRequest) {
   // PRIORITÉ 2 : Authentification NextAuth
   const token = await getToken({ 
     req: request,
-    secret: process.env.NEXTAUTH_SECRET 
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === 'production',
   })
 
   // LOG TEMPORAIRE pour debug
@@ -25,6 +26,7 @@ export async function middleware(request: NextRequest) {
       hasToken: !!token,
       tokenEmail: token?.email || 'N/A',
       cookies: request.cookies.getAll().map(c => c.name),
+      nodeEnv: process.env.NODE_ENV,
     });
   }
 
@@ -49,12 +51,6 @@ export async function middleware(request: NextRequest) {
     '/update-product',
     '/give'
   ]
-  
-  // TEMPORAIRE : Autoriser /admin/* sans vérification pour debug
-  if (pathname.startsWith('/admin/')) {
-    console.log('🔓 Admin route - bypassing auth check temporarily');
-    return NextResponse.next();
-  }
 
   const isProtectedRoute = protectedRoutes.some(route => 
     request.nextUrl.pathname.startsWith(route)
