@@ -22,15 +22,18 @@ const SignInPage = () => {
       const result = await signIn('credentials', {
         email,
         password,
-        redirect: true,
-        callbackUrl: '/post-sign-in',
+        redirect: false,
       })
 
-      // Si on arrive ici, c'est qu'il y a eu une erreur (sinon redirect automatique)
       if (result?.error) {
         console.error('❌ Erreur de connexion:', result.error)
         toast.error('Email ou mot de passe incorrect')
         setLoading(false)
+      } else if (result?.ok) {
+        console.log('✅ Connexion réussie')
+        toast.success('Connexion réussie !')
+        // Redirection vers post-sign-in qui gère le routing
+        window.location.href = '/post-sign-in'
       }
     } catch (error) {
       console.error('💥 Erreur de connexion:', error)
