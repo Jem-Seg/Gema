@@ -42,14 +42,34 @@ const SignInPage = () => {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
         
-        // Attendre que la session soit bien établie avant de naviguer
-        console.log('⏳ Attente établissement session...')
+        // Récupérer la session pour déterminer la destination
+        console.log('🔍 Récupération session pour routing...')
         
-        // Attendre 1 seconde pour être sûr que le cookie est set
-        setTimeout(() => {
-          console.log('🔄 Navigation vers /post-sign-in')
-          window.location.href = '/post-sign-in'
-        }, 1000)
+        setTimeout(async () => {
+          try {
+            // Forcer un refresh de la session
+            const sessionResponse = await fetch('/api/auth/session');
+            const sessionData = await sessionResponse.json();
+            console.log('📦 Session data:', sessionData);
+            
+            const user = sessionData?.user;
+            
+            if (user?.isAdmin) {
+              console.log('🎯 Admin → /admin/dashboard');
+              window.location.href = '/admin/dashboard';
+            } else if (user?.isApproved && user?.roleId) {
+              console.log('👤 User → /dashboard');
+              window.location.href = '/dashboard';
+            } else {
+              console.log('⏳ Pending → /admin/verify');
+              window.location.href = '/admin/verify';
+            }
+          } catch (err) {
+            console.error('❌ Erreur routing:', err);
+            // Fallback vers post-sign-in en cas d'erreur
+            window.location.href = '/post-sign-in';
+          }
+        }, 1500)
       } else {
         // Cas inattendu
         console.warn('⚠️ Résultat inattendu:', result)
