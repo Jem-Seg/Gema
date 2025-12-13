@@ -26,7 +26,7 @@ export default function PostSignInPage() {
     if (status === 'unauthenticated') {
       console.log('Not authenticated, redirecting to sign-in');
       hasRedirected.current = true;
-      router.replace('/sign-in');
+      window.location.replace('/sign-in');
       return;
     }
 
@@ -41,20 +41,21 @@ export default function PostSignInPage() {
       
       hasRedirected.current = true;
       
+      // Utiliser window.location.href pour forcer une navigation complète
       // Admin → dashboard admin
       if (isAdmin) {
         console.log('Redirecting admin to /admin/dashboard');
-        router.replace('/admin/dashboard');
+        window.location.href = '/admin/dashboard';
       } 
       // Non-admin approuvé avec rôle → dashboard utilisateur
       else if (isApproved && hasRole) {
         console.log('Redirecting approved user to /dashboard');
-        router.replace('/dashboard');
+        window.location.href = '/dashboard';
       }
       // Non-admin non approuvé ou sans rôle → page d'attente avec option clé admin
       else {
         console.log('Redirecting non-approved user to /admin/verify');
-        router.replace('/admin/verify');
+        window.location.href = '/admin/verify';
       }
     }
   }, [status, session, router]);
