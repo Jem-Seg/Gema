@@ -49,10 +49,9 @@ export default function AdminDashboard() {
       return;
     }
 
-    // Si pas authentifié, rediriger vers sign-in
+    // Si pas encore authentifié, attendre (le middleware gère la redirection)
     if (status === 'unauthenticated') {
-      console.log('❌ Non authentifié, redirection vers /sign-in');
-      router.push('/sign-in');
+      console.log('⏳ Pas encore authentifié, en attente...');
       return;
     }
 
