@@ -65,6 +65,26 @@ if [ -f "custom-server.js" ]; then
   echo "✅ Custom server copied"
 fi
 
+# Copy Prisma files to standalone
+echo "📋 Copying Prisma files to standalone..."
+if [ -f "prisma.config.ts" ]; then
+  cp prisma.config.ts .next/standalone/
+  echo "✅ prisma.config.ts copied"
+fi
+
+if [ -d "prisma" ]; then
+  mkdir -p .next/standalone/prisma
+  cp -r prisma/* .next/standalone/prisma/
+  echo "✅ prisma directory copied"
+fi
+
+# Copy node_modules/.prisma to standalone (critical for Prisma Client)
+if [ -d "node_modules/.prisma" ]; then
+  mkdir -p .next/standalone/node_modules/.prisma
+  cp -r node_modules/.prisma/* .next/standalone/node_modules/.prisma/
+  echo "✅ Prisma Client copied"
+fi
+
 # Diagnostic final
 echo ""
 echo "=========================================="
