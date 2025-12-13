@@ -42,13 +42,14 @@ const SignInPage = () => {
         console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
         
-        // Forcer navigation complète vers /post-sign-in (pas de router.push)
-        console.log('🔄 Navigation forcée vers /post-sign-in')
+        // Attendre que la session soit bien établie avant de naviguer
+        console.log('⏳ Attente établissement session...')
         
-        // Attendre un tout petit peu pour que le cookie soit set
+        // Attendre 1 seconde pour être sûr que le cookie est set
         setTimeout(() => {
+          console.log('🔄 Navigation vers /post-sign-in')
           window.location.href = '/post-sign-in'
-        }, 300)
+        }, 1000)
       } else {
         // Cas inattendu
         console.warn('⚠️ Résultat inattendu:', result)

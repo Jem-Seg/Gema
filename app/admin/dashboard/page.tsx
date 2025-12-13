@@ -67,7 +67,7 @@ export default function AdminDashboard() {
       const verifyAdmin = async () => {
         try {
           console.log('🔍 Vérification statut admin...');
-          const response = await fetch('/api/admin/verify');
+          const response = await fetch('/api/admin/verify', { method: 'POST' });
           const data = await response.json();
           console.log('📋 Réponse /api/admin/verify:', data);
           
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
 
       verifyAdmin();
     }
-  }, [status, user, router]);
+  }, [status, user]); // Retirer router des dépendances pour éviter boucle infinie
 
 
 

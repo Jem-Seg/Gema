@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-export async function POST(req: NextRequest) {
+async function verifyAdmin() {
   try {
     const session = await auth();
     if (!session || !session.user) {
-      return NextResponse.json({ ok: false, message: "Unauthenticated" }, { status: 401 });
+      return NextResponse.json({ isAdmin: false, message: "Unauthenticated" }, { status: 401 });
     }
 
     if (!session.user.isAdmin) {
-      return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ isAdmin: false, message: "Forbidden" }, { status: 403 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ isAdmin: true });
   } catch (error) {
     console.error("VERIFY ERROR:", error);
-    return NextResponse.json({ ok: false, message: "Server error" }, { status: 500 });
+    return NextResponse.json({ isAdmin: false, message: "Server error" }, { status: 500 });
   }
+}
+
+export async function GET(req: NextRequest) {
+  return verifyAdmin();
+}
+
+export async function POST(req: NextRequest) {
+  return verifyAdmin();
 }

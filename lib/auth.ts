@@ -111,6 +111,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.log('🔍 Recherche utilisateur dans la base...');
           const user = await prisma.user.findUnique({
             where: { email: credentials.email as string },
+          }).catch((dbError) => {
+            console.error('💥 ERREUR BASE DE DONNÉES:', dbError);
+            console.error('💥 Message:', dbError.message);
+            console.error('💥 Code:', dbError.code);
+            throw dbError;
           });
 
           if (!user) {
