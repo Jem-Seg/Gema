@@ -17,8 +17,6 @@ const SignInPage = () => {
     setLoading(true)
 
     try {
-      console.log('🔄 Tentative de connexion avec:', email)
-      
       const result = await signIn('credentials', {
         email,
         password,
@@ -26,24 +24,14 @@ const SignInPage = () => {
       })
 
       if (result?.error) {
-        console.error('❌ Erreur de connexion:', result.error)
         toast.error('Email ou mot de passe incorrect')
         setLoading(false)
       } else if (result?.ok) {
-        console.log('✅ Connexion réussie')
         toast.success('Connexion réussie !')
-        
-        // Attendre 2 secondes pour que le cookie soit bien enregistré
-        console.log('⏳ Attente 2s pour création cookie...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        console.log('🔄 Cookies après connexion:', document.cookie);
-        
         // Redirection vers post-sign-in qui gère le routing
         window.location.href = '/post-sign-in'
       }
     } catch (error) {
-      console.error('💥 Erreur de connexion:', error)
       toast.error('Une erreur est survenue')
       setLoading(false)
     }

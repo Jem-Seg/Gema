@@ -19,17 +19,6 @@ export async function middleware(request: NextRequest) {
     secureCookie: process.env.NODE_ENV === 'production',
   })
 
-  // LOG TEMPORAIRE pour debug
-  if (pathname === '/sign-in' || pathname === '/post-sign-in' || pathname === '/admin/dashboard') {
-    console.log('🛡️ Middleware:', {
-      pathname,
-      hasToken: !!token,
-      tokenEmail: token?.email || 'N/A',
-      cookies: request.cookies.getAll().map(c => c.name),
-      nodeEnv: process.env.NODE_ENV,
-    });
-  }
-
   const isAuthPage = request.nextUrl.pathname.startsWith('/sign-in') || 
                      request.nextUrl.pathname.startsWith('/sign-up') ||
                      request.nextUrl.pathname.startsWith('/reset-password')

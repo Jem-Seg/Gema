@@ -11,12 +11,10 @@ export default function PostSignInPage() {
 
   useEffect(() => {
     if (status === 'loading') {
-      console.log('Session loading...');
       return;
     }
 
     if (status === 'unauthenticated') {
-      console.log('Not authenticated, redirecting to sign-in');
       router.replace('/sign-in');
       return;
     }
@@ -24,26 +22,16 @@ export default function PostSignInPage() {
     if (status === 'authenticated' && session?.user) {
       const user = session.user as any;
       
-      console.log('Authenticated, user status:', { 
-        isAdmin: user.isAdmin, 
-        isApproved: user.isApproved, 
-        hasRole: !!user.roleId,
-        user 
-      });
-      
       // Admin → dashboard admin
       if (user.isAdmin) {
-        console.log('🎯 Admin → /admin/dashboard');
         router.replace('/admin/dashboard');
       } 
       // Non-admin approuvé avec rôle → dashboard utilisateur
       else if (user.isApproved && user.roleId) {
-        console.log('👤 User → /dashboard');
         router.replace('/dashboard');
       }
       // Non-admin non approuvé ou sans rôle → page d'attente
       else {
-        console.log('⏳ Pending → /admin/verify');
         router.replace('/admin/verify');
       }
     }
