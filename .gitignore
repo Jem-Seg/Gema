@@ -48,3 +48,6 @@ next-env.d.ts
 # logs
 /logs/
 *.log
+
+# scripts de sauvegarde avec credentials
+backup-db-local.sh
