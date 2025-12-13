@@ -50,11 +50,27 @@ export async function POST(request: NextRequest) {
     // Pour le développement, on retourne le lien
     const resetLink = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/reset-password?token=${token}`
 
+    // Toujours loguer le lien en mode développement pour debug
+    // Next.js définit automatiquement NODE_ENV mais on vérifie aussi l'URL
+    const isDevelopment = process.env.NODE_ENV !== 'production' || resetLink.includes('localhost')
+    
+    if (isDevelopment) {
+      console.log('\n=========================================')
+      console.log('🔐 LIEN DE RÉINITIALISATION DE MOT DE PASSE')
+      console.log('=========================================')
+      console.log('Email:', email)
+      console.log('Lien:', resetLink)
+      console.log('Expire dans: 1 heure')
+      console.log('=========================================\n')
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Un lien de réinitialisation a été généré.',
-      // En développement seulement - à retirer en production
-      developmentLink: process.env.NODE_ENV === 'development' ? resetLink : undefined
+      message: isDevelopment 
+        ? 'Lien de réinitialisation généré ! (Voir ci-dessous en mode développement)'
+        : 'Si cet email existe, un lien de réinitialisation a été envoyé.',
+      // En développement seulement
+      developmentLink: isDevelopment ? resetLink : undefined
     })
   } catch (error) {
     console.error('Erreur lors de la demande de réinitialisation:', error)
