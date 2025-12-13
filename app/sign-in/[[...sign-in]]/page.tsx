@@ -54,16 +54,27 @@ const SignInPage = () => {
             
             const user = sessionData?.user;
             
+            let destination = '/admin/verify';
             if (user?.isAdmin) {
               console.log('🎯 Admin → /admin/dashboard');
-              window.location.href = '/admin/dashboard';
+              destination = '/admin/dashboard';
             } else if (user?.isApproved && user?.roleId) {
               console.log('👤 User → /dashboard');
-              window.location.href = '/dashboard';
+              destination = '/dashboard';
             } else {
               console.log('⏳ Pending → /admin/verify');
-              window.location.href = '/admin/verify';
             }
+            
+            console.log('🚀 Creating form to navigate to:', destination);
+            
+            // Créer un formulaire HTML invisible - ne peut pas être bloqué
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = destination;
+            form.style.display = 'none';
+            document.body.appendChild(form);
+            console.log('📝 Form created, submitting...');
+            form.submit();
           } catch (err) {
             console.error('❌ Erreur routing:', err);
             // Fallback vers post-sign-in en cas d'erreur
