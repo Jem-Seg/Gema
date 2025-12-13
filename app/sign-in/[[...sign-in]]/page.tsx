@@ -13,11 +13,8 @@ const SignInPage = () => {
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('🚀 handleSubmit appelé - DÉBUT')
     e.preventDefault()
-    console.log('✋ preventDefault appelé')
     setLoading(true)
-    console.log('⏳ Loading activé')
 
     try {
       console.log('🔄 Tentative de connexion avec:', email)
@@ -25,71 +22,18 @@ const SignInPage = () => {
       const result = await signIn('credentials', {
         email,
         password,
-        redirect: false,
+        redirect: true,
+        callbackUrl: '/post-sign-in',
       })
 
-      console.log('📥 SignIn result complet:', JSON.stringify(result, null, 2))
-      console.log('📊 Result.ok:', result?.ok)
-      console.log('📊 Result.error:', result?.error)
-      console.log('📊 Result.status:', result?.status)
-      console.log('📊 Result.url:', result?.url)
-
+      // Si on arrive ici, c'est qu'il y a eu une erreur (sinon redirect automatique)
       if (result?.error) {
         console.error('❌ Erreur de connexion:', result.error)
         toast.error('Email ou mot de passe incorrect')
         setLoading(false)
-      } else if (result?.ok) {
-        console.log('✅ Connexion réussie')
-        toast.success('Connexion réussie !')
-        
-        // Récupérer la session pour déterminer la destination
-        console.log('🔍 Récupération session pour routing...')
-        
-        setTimeout(async () => {
-          try {
-            // Forcer un refresh de la session
-            const sessionResponse = await fetch('/api/auth/session');
-            const sessionData = await sessionResponse.json();
-            console.log('📦 Session data:', sessionData);
-            
-            const user = sessionData?.user;
-            
-            let destination = '/admin/verify';
-            if (user?.isAdmin) {
-              console.log('🎯 Admin → /admin/dashboard');
-              destination = '/admin/dashboard';
-            } else if (user?.isApproved && user?.roleId) {
-              console.log('👤 User → /dashboard');
-              destination = '/dashboard';
-            } else {
-              console.log('⏳ Pending → /admin/verify');
-            }
-            
-            console.log('🚀 Creating form to navigate to:', destination);
-            
-            // Créer un formulaire HTML invisible - ne peut pas être bloqué
-            const form = document.createElement('form');
-            form.method = 'GET';
-            form.action = destination;
-            form.style.display = 'none';
-            document.body.appendChild(form);
-            console.log('📝 Form created, submitting...');
-            form.submit();
-          } catch (err) {
-            console.error('❌ Erreur routing:', err);
-            // Fallback vers post-sign-in en cas d'erreur
-            window.location.href = '/post-sign-in';
-          }
-        }, 1500)
-      } else {
-        // Cas inattendu
-        console.warn('⚠️ Résultat inattendu:', result)
-        toast.error('Une erreur est survenue')
-        setLoading(false)
       }
     } catch (error) {
       console.error('💥 Erreur de connexion:', error)
-      console.error('💥 Stack:', error instanceof Error ? error.stack : 'No stack')
       toast.error('Une erreur est survenue')
       setLoading(false)
     }

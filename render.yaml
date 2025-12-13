@@ -16,6 +16,6 @@ services:
       - key: NEXTAUTH_SECRET
         sync: false
       - key: NEXTAUTH_URL
-        sync: false
+        value: https://gema-l9le.onrender.com
     healthCheckPath: /
     autoDeploy: true
