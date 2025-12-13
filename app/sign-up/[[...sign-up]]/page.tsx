@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { PackagePlus } from 'lucide-react'
+import { PackagePlus, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 const SignUpPage = () => {
@@ -17,6 +17,8 @@ const SignUpPage = () => {
   })
   const [loading, setLoading] = useState(false)
   const [isFirstUser, setIsFirstUser] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Vérifier si c'est le premier utilisateur au chargement
   React.useEffect(() => {
@@ -178,16 +180,26 @@ const SignUpPage = () => {
               <label className='label'>
                 <span className='label-text font-medium'>Mot de passe</span>
               </label>
-              <input
-                type='password'
-                name='password'
-                placeholder='••••••••'
-                className='input input-bordered w-full'
-                value={formData.password}
-                onChange={handleChange}
-                required
-                minLength={8}
-              />
+              <div className='relative'>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name='password'
+                  placeholder='••••••••'
+                  className='input input-bordered w-full pr-10'
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                />
+                <button
+                  type='button'
+                  className='absolute right-3 top-1/2 -translate-y-1/2 text-base-content/60 hover:text-base-content'
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
               <label className='label'>
                 <span className='label-text-alt'>Minimum 8 caractères</span>
               </label>
@@ -197,15 +209,25 @@ const SignUpPage = () => {
               <label className='label'>
                 <span className='label-text font-medium'>Confirmer le mot de passe</span>
               </label>
-              <input
-                type='password'
-                name='confirmPassword'
-                placeholder='••••••••'
-                className='input input-bordered w-full'
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-              />
+              <div className='relative'>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name='confirmPassword'
+                  placeholder='••••••••'
+                  className='input input-bordered w-full pr-10'
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type='button'
+                  className='absolute right-3 top-1/2 -translate-y-1/2 text-base-content/60 hover:text-base-content'
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             <div className='form-control mt-6'>

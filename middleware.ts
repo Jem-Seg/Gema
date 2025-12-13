@@ -13,16 +13,17 @@ export async function middleware(request: NextRequest) {
   }
 
   // PRIORITÉ 2 : Authentification NextAuth
-  const token = await getToken({ 
+  const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
     secureCookie: process.env.NODE_ENV === 'production',
   })
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/sign-in') || 
-                     request.nextUrl.pathname.startsWith('/sign-up') ||
-                     request.nextUrl.pathname.startsWith('/reset-password')
-  
+  const isAuthPage = request.nextUrl.pathname.startsWith('/sign-in') ||
+    request.nextUrl.pathname.startsWith('/sign-up') ||
+    request.nextUrl.pathname.startsWith('/reset-password') ||
+    request.nextUrl.pathname.startsWith('/forgot-password')
+
   const isPostSignIn = request.nextUrl.pathname === '/post-sign-in'
   const isAdminVerify = request.nextUrl.pathname === '/admin/verify'
 
@@ -41,7 +42,7 @@ export async function middleware(request: NextRequest) {
     '/give'
   ]
 
-  const isProtectedRoute = protectedRoutes.some(route => 
+  const isProtectedRoute = protectedRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
   )
 
